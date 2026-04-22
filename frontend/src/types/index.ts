@@ -2,6 +2,21 @@ export interface User {
   id: number;
   username: string;
   email: string;
+  is_admin?: boolean;
+  is_active?: boolean;
+  created_at?: string;
+}
+
+export interface AdminPlace {
+  id: number;
+  city: string;
+  name: string;
+  address: string | null;
+  lat: number;
+  lng: number;
+  category: 'tourist_attraction' | 'restaurant' | 'lodging' | 'museum';
+  rating: number;
+  created_by?: number | null;
   created_at?: string;
 }
 
