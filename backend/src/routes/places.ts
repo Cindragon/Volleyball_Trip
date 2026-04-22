@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
+import { getCuratedNearby, filterByType, CuratedPlace } from '../db/curatedPlaces';
 
 const router = Router();
 
@@ -7,15 +8,32 @@ const MAPS_KEY = () => process.env.GOOGLE_MAPS_API_KEY as string;
 
 /**
  * GET /api/places/nearby
- * Query params: lat, lng, type (tourist_attraction|restaurant|lodging|museum|...), radius (default 2000m)
+ * Query params: lat, lng, type, radius (default 2000m), keyword, city
  *
- * Proxies Google Places Nearby Search so the API key stays server-side.
+ * Primary source: Google Places Nearby Search (proxied so the API key stays
+ * server-side). When Google isn't configured, errors, or returns zero results
+ * for the selected type, falls back to a curated dataset keyed by `city` so
+ * the arena always surfaces recommended spots to the user.
  */
 router.get('/nearby', async (req: Request, res: Response): Promise<void> => {
-  const { lat, lng, type, radius = '2000', keyword } = req.query;
+  const { lat, lng, type, radius = '2000', keyword, city } = req.query;
 
   if (!lat || !lng) {
     res.status(400).json({ error: 'lat and lng are required' });
+    return;
+  }
+
+  const latNum = Number(lat);
+  const lngNum = Number(lng);
+  const typeStr = type ? String(type) : undefined;
+  const cityStr = city ? String(city) : undefined;
+
+  const buildFallback = (): CuratedPlace[] =>
+    filterByType(getCuratedNearby(cityStr, latNum, lngNum), typeStr);
+
+  const key = MAPS_KEY();
+  if (!key) {
+    res.json({ results: buildFallback(), status: 'OK', source: 'curated' });
     return;
   }
 
@@ -23,17 +41,16 @@ router.get('/nearby', async (req: Request, res: Response): Promise<void> => {
     const params: Record<string, string> = {
       location: `${lat},${lng}`,
       radius: radius as string,
-      key: MAPS_KEY(),
+      key,
     };
-    if (type) params.type = type as string;
-    if (keyword) params.keyword = keyword as string;
+    if (typeStr)  params.type    = typeStr;
+    if (keyword)  params.keyword = keyword as string;
 
     const response = await axios.get(
       'https://maps.googleapis.com/maps/api/place/nearbysearch/json',
       { params }
     );
 
-    // Forward only what the frontend needs (avoid leaking raw API response)
     const results = (response.data.results as any[]).map((place) => ({
       place_id: place.place_id,
       name: place.name,
@@ -47,14 +64,24 @@ router.get('/nearby', async (req: Request, res: Response): Promise<void> => {
       opening_hours: place.opening_hours ?? null,
     }));
 
+    if (results.length === 0) {
+      res.json({
+        results: buildFallback(),
+        status: response.data.status ?? 'ZERO_RESULTS',
+        source: 'curated',
+      });
+      return;
+    }
+
     res.json({
       results,
       status: response.data.status,
       next_page_token: response.data.next_page_token ?? null,
+      source: 'google',
     });
   } catch (err: any) {
     console.error('Places API error:', err.message);
-    res.status(502).json({ error: 'Failed to fetch places from Google API' });
+    res.json({ results: buildFallback(), status: 'OK', source: 'curated' });
   }
 });
 

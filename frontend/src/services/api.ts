@@ -71,8 +71,8 @@ export const itinerariesApi = {
 
 // ── Places ────────────────────────────────────────────────────────────────────
 export const placesApi = {
-  nearby: (params: { lat: number; lng: number; type?: string; radius?: number; keyword?: string }) =>
-    api.get<{ results: NearbyPlace[]; status: string }>('/places/nearby', { params }),
+  nearby: (params: { lat: number; lng: number; type?: string; radius?: number; keyword?: string; city?: string }) =>
+    api.get<{ results: NearbyPlace[]; status: string; source?: 'google' | 'curated' }>('/places/nearby', { params }),
 
   photoUrl: (ref: string, maxwidth = 400) =>
     `http://localhost:3001/api/places/photo?ref=${ref}&maxwidth=${maxwidth}`,
