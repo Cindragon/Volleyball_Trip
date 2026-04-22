@@ -50,7 +50,7 @@ export default function Navbar() {
               letterSpacing: '-0.01em',
             }}
           >
-            Volley<span style={{ color: 'var(--color-coral)' }}>Trip</span>
+            Volley<span style={{ color: 'var(--color-primary)' }}>Trip</span>
           </Typography>
         </Link>
 
@@ -69,7 +69,7 @@ export default function Navbar() {
                   fontWeight: active ? 700 : 500,
                   fontSize: '0.82rem',
                   px: 1.5,
-                  '&:hover': { color: 'text.primary', background: 'rgba(240,237,232,0.05)' },
+                  '&:hover': { color: 'text.primary', background: 'var(--color-primary-soft)' },
                 }}
               >
                 {link.label}
@@ -85,11 +85,11 @@ export default function Navbar() {
               onClick={(e) => setAnchorEl(e.currentTarget)}
               size="small"
               sx={{
-                border: '1px solid rgba(240,237,232,0.12)',
+                border: '1px solid var(--color-border)',
                 borderRadius: '6px',
                 p: 0.75,
                 gap: 1,
-                '&:hover': { background: 'rgba(255,107,53,0.08)', borderColor: 'primary.main' },
+                '&:hover': { background: 'var(--color-primary-soft)', borderColor: 'primary.main' },
               }}
             >
               <Avatar
@@ -117,8 +117,9 @@ export default function Navbar() {
                 paper: {
                   sx: {
                     mt: 1,
-                    background: '#1E2538',
-                    border: '1px solid rgba(240,237,232,0.1)',
+                    background: '#ffffff',
+                    border: '1px solid var(--color-border)',
+                    boxShadow: '0 8px 24px rgba(22,18,9,0.08)',
                     minWidth: 180,
                   },
                 },

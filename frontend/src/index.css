@@ -1,21 +1,36 @@
 @import "tailwindcss";
 
-/* ── Google Fonts ───────────────────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600;1,700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
-
-/* ── CSS Custom Properties ──────────────────────────────────────────────────── */
+/* ── CSS Custom Properties (FixIt-inspired bright palette) ─────────────────── */
 :root {
-  --color-bg:        #0A0E1A;
-  --color-surface:   #141929;
-  --color-surface2:  #1E2538;
-  --color-border:    rgba(240,237,232,0.08);
-  --color-coral:     #FF6B35;
-  --color-teal:      #00D4AA;
-  --color-gold:      #F5C842;
-  --color-text:      #F0EDE8;
-  --color-muted:     #8B91A7;
-  --font-display:    'Playfair Display', Georgia, serif;
-  --font-body:       'DM Sans', 'Helvetica Neue', Arial, sans-serif;
+  /* Surfaces */
+  --color-bg:        #ffffff;
+  --color-surface:   #f8f8f8;
+  --color-surface2:  #f4f6f8;
+
+  /* Hairlines */
+  --color-border:    #e3e3e3;
+  --color-divider:   #ededed;
+
+  /* Text */
+  --color-text:      #161209;
+  --color-muted:     #8b949e;
+  --color-placeholder: #b1b1ba;
+
+  /* Brand — 花青 / 潮蓝 / 莲瓣红 */
+  --color-primary:      #2376b7;
+  --color-primary-hover:#2983bb;
+  --color-primary-soft: rgba(35,118,183,0.08);
+  --color-accent:       #ea517f;
+  --color-accent-soft:  rgba(234,81,127,0.10);
+
+  /* Legacy aliases (keep existing components working) */
+  --color-coral:     #ea517f;
+  --color-teal:      #2376b7;
+  --color-gold:      #f5c842;
+
+  /* Typography */
+  --font-display:    system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei UI", "Segoe UI", Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-body:       system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei UI", "Segoe UI", Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
 /* ── Base ───────────────────────────────────────────────────────────────────── */
@@ -37,19 +52,21 @@ body {
   flex-direction: column;
 }
 
-/* ── Volleyball Court Pattern (decorative) ──────────────────────────────────── */
+::selection { background: rgba(53,166,247,0.25); }
+
+/* ── Volleyball Court Pattern (decorative, softened for light mode) ──────── */
 .court-pattern {
   background-image:
-    linear-gradient(rgba(255,107,53,0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,107,53,0.04) 1px, transparent 1px);
+    linear-gradient(rgba(35,118,183,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(35,118,183,0.05) 1px, transparent 1px);
   background-size: 40px 40px;
 }
 
 /* ── Scrollbar ──────────────────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--color-bg); }
-::-webkit-scrollbar-thumb { background: #2A3050; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #3A4060; }
+::-webkit-scrollbar-thumb { background: #a6a6a6; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #7d7d7d; }
 
 /* ── Animations ─────────────────────────────────────────────────────────────── */
 @keyframes fade-up {
@@ -64,19 +81,19 @@ body {
   0%   { background-position: -200% 0; }
   100% { background-position:  200% 0; }
 }
-@keyframes pulse-coral {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,53,0); }
-  50%       { box-shadow: 0 0 0 8px rgba(255,107,53,0.15); }
+@keyframes pulse-primary {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(35,118,183,0); }
+  50%       { box-shadow: 0 0 0 8px rgba(35,118,183,0.15); }
 }
 
 .animate-fade-up  { animation: fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .animate-fade-in  { animation: fade-in 0.4s ease both; }
 
 .skeleton {
-  background: linear-gradient(90deg, #1E2538 25%, #2A3050 50%, #1E2538 75%);
+  background: linear-gradient(90deg, #f0f0f0 25%, #e3e3e3 50%, #f0f0f0 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
-  border-radius: 4px;
+  border-radius: 5px;
 }
 
 /* Staggered children animations */
@@ -87,15 +104,15 @@ body {
 .stagger > *:nth-child(5) { animation-delay: 0.25s; }
 .stagger > *:nth-child(6) { animation-delay: 0.30s; }
 
-/* ── League badge colors ────────────────────────────────────────────────────── */
-.badge-italy  { background: rgba(0,146,70,0.15);  color: #33C97A; border: 1px solid rgba(0,200,83,0.25); }
-.badge-japan  { background: rgba(188,0,45,0.15);  color: #FF6B8A; border: 1px solid rgba(255,77,106,0.25); }
-.badge-poland { background: rgba(220,20,60,0.12); color: #FF8FA3; border: 1px solid rgba(220,20,60,0.25); }
-.badge-turkey { background: rgba(255,107,53,0.12); color: #FF8F62; border: 1px solid rgba(255,107,53,0.25); }
+/* ── League badge colors (softened for light mode) ────────────────────────── */
+.badge-italy  { background: rgba(0,146,70,0.10);  color: #1f7a42; border: 1px solid rgba(0,146,70,0.25); }
+.badge-japan  { background: rgba(188,0,45,0.08);  color: #b8003a; border: 1px solid rgba(188,0,45,0.25); }
+.badge-poland { background: rgba(220,20,60,0.08); color: #b01c3c; border: 1px solid rgba(220,20,60,0.25); }
+.badge-turkey { background: rgba(35,118,183,0.08); color: #2376b7; border: 1px solid rgba(35,118,183,0.25); }
 
 /* ── Map container ──────────────────────────────────────────────────────────── */
 .map-container {
-  border-radius: 4px;
+  border-radius: 5px;
   overflow: hidden;
   border: 1px solid var(--color-border);
 }
@@ -103,25 +120,27 @@ body {
 /* ── Card hover lift ────────────────────────────────────────────────────────── */
 .card-lift {
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-              box-shadow 0.2s ease;
+              box-shadow 0.2s ease,
+              border-color 0.2s ease;
 }
 .card-lift:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 16px 48px rgba(0,0,0,0.45);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(22,18,9,0.08);
+  border-color: rgba(35,118,183,0.35);
 }
 
 /* ── Glow accents ───────────────────────────────────────────────────────────── */
-.glow-coral { box-shadow: 0 0 24px rgba(255,107,53,0.3); }
-.glow-teal  { box-shadow: 0 0 24px rgba(0,212,170,0.25); }
+.glow-coral { box-shadow: 0 2px 12px rgba(234,81,127,0.25); }
+.glow-teal  { box-shadow: 0 2px 12px rgba(35,118,183,0.22); }
 
-/* ── Section divider ────────────────────────────────────────────────────────── */
+/* ── Section label ──────────────────────────────────────────────────────────── */
 .section-label {
   font-family: var(--font-body);
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--color-coral);
+  color: var(--color-primary);
 }
 
 /* ── Diagonal hero accent ───────────────────────────────────────────────────── */
