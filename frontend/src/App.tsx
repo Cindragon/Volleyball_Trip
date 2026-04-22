@@ -11,12 +11,21 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ItinerariesPage from './pages/ItinerariesPage';
 import ItineraryDetailPage from './pages/ItineraryDetailPage';
+import AdminPage from './pages/AdminPage';
 import type { ReactNode } from 'react';
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+function RequireAdmin({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!user.is_admin) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
@@ -31,6 +40,7 @@ function AppRoutes() {
         <Route path="/register"           element={<RegisterPage />} />
         <Route path="/itineraries"        element={<RequireAuth><ItinerariesPage /></RequireAuth>} />
         <Route path="/itineraries/:id"    element={<RequireAuth><ItineraryDetailPage /></RequireAuth>} />
+        <Route path="/admin"              element={<RequireAdmin><AdminPage /></RequireAdmin>} />
         <Route path="*"                   element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

@@ -6,6 +6,7 @@ import authRouter from './routes/auth';
 import teamsRouter from './routes/teams';
 import itinerariesRouter from './routes/itineraries';
 import placesRouter from './routes/places';
+import adminRouter from './routes/admin';
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/teams', teamsRouter);
 app.use('/api/itineraries', itinerariesRouter);
 app.use('/api/places', placesRouter);
+app.use('/api/admin', adminRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {

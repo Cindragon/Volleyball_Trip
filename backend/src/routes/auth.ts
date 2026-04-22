@@ -5,6 +5,35 @@ import db from '../db/database';
 
 const router = Router();
 
+/** Comma-separated email whitelist → auto-promote to admin on register. */
+function isWhitelistedAdmin(email: string): boolean {
+  const list = (process.env.ADMIN_EMAILS ?? '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
+  return list.includes(email.toLowerCase());
+}
+
+type PublicUser = {
+  id: number;
+  username: string;
+  email: string;
+  is_admin: boolean;
+  is_active: boolean;
+  created_at?: string;
+};
+
+function toPublicUser(row: any): PublicUser {
+  return {
+    id: row.id,
+    username: row.username,
+    email: row.email,
+    is_admin: !!row.is_admin,
+    is_active: !!row.is_active,
+    created_at: row.created_at,
+  };
+}
+
 // POST /api/auth/register
 router.post('/register', (req: Request, res: Response): void => {
   const { username, email, password } = req.body;
@@ -27,9 +56,13 @@ router.post('/register', (req: Request, res: Response): void => {
   }
 
   const password_hash = bcrypt.hashSync(password, 10);
+  const is_admin = isWhitelistedAdmin(email) ? 1 : 0;
   const result = db
-    .prepare('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)')
-    .run(username, email, password_hash);
+    .prepare(
+      `INSERT INTO users (username, email, password_hash, is_admin, is_active)
+       VALUES (?, ?, ?, ?, 1)`
+    )
+    .run(username, email, password_hash, is_admin);
 
   const newId = Number(result.lastInsertRowid);
   const token = jwt.sign(
@@ -40,7 +73,13 @@ router.post('/register', (req: Request, res: Response): void => {
 
   res.status(201).json({
     token,
-    user: { id: newId, username, email },
+    user: toPublicUser({
+      id: newId,
+      username,
+      email,
+      is_admin,
+      is_active: 1,
+    }),
   });
 });
 
@@ -55,10 +94,24 @@ router.post('/login', (req: Request, res: Response): void => {
 
   const user = db
     .prepare('SELECT * FROM users WHERE email = ?')
-    .get(email) as { id: number; username: string; email: string; password_hash: string } | undefined;
+    .get(email) as
+    | {
+        id: number;
+        username: string;
+        email: string;
+        password_hash: string;
+        is_admin: number;
+        is_active: number;
+        created_at: string;
+      }
+    | undefined;
 
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
     res.status(401).json({ error: 'Invalid email or password' });
+    return;
+  }
+  if (!user.is_active) {
+    res.status(403).json({ error: 'Account has been deactivated' });
     return;
   }
 
@@ -68,13 +121,10 @@ router.post('/login', (req: Request, res: Response): void => {
     { expiresIn: '7d' }
   );
 
-  res.json({
-    token,
-    user: { id: user.id, username: user.username, email: user.email },
-  });
+  res.json({ token, user: toPublicUser(user) });
 });
 
-// GET /api/auth/me  (validate token + return user info)
+// GET /api/auth/me
 router.get('/me', (req: Request, res: Response): void => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
@@ -88,14 +138,20 @@ router.get('/me', (req: Request, res: Response): void => {
     ) as { userId: number; username: string };
 
     const user = db
-      .prepare('SELECT id, username, email, created_at FROM users WHERE id = ?')
-      .get(payload.userId);
+      .prepare(
+        'SELECT id, username, email, is_admin, is_active, created_at FROM users WHERE id = ?'
+      )
+      .get(payload.userId) as any;
 
     if (!user) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
-    res.json({ user });
+    if (!user.is_active) {
+      res.status(403).json({ error: 'Account has been deactivated' });
+      return;
+    }
+    res.json({ user: toPublicUser(user) });
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' });
   }

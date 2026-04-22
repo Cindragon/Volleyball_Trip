@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Team, Itinerary, ItineraryStop, NearbyPlace, User } from '../types';
+import type { Team, Itinerary, ItineraryStop, NearbyPlace, User, AdminPlace } from '../types';
 
 const api = axios.create({
   baseURL: 'http://localhost:3001/api',
@@ -76,6 +76,36 @@ export const placesApi = {
 
   photoUrl: (ref: string, maxwidth = 400) =>
     `http://localhost:3001/api/places/photo?ref=${ref}&maxwidth=${maxwidth}`,
+};
+
+// ── Admin ─────────────────────────────────────────────────────────────────────
+export const adminApi = {
+  // Teams
+  createTeam: (data: Omit<Team, 'id'>) =>
+    api.post<{ team: Team }>('/admin/teams', data),
+
+  deleteTeam: (id: number) =>
+    api.delete<{ deleted: number }>(`/admin/teams/${id}`),
+
+  // Curated places (admin-managed)
+  listPlaces: () =>
+    api.get<{ places: AdminPlace[] }>('/admin/places'),
+
+  createPlace: (data: Omit<AdminPlace, 'id' | 'created_by' | 'created_at'>) =>
+    api.post<{ place: AdminPlace }>('/admin/places', data),
+
+  deletePlace: (id: number) =>
+    api.delete<{ deleted: number }>(`/admin/places/${id}`),
+
+  // Users
+  listUsers: () =>
+    api.get<{ users: User[] }>('/admin/users'),
+
+  setUserActive: (id: number, is_active: boolean) =>
+    api.patch<{ id: number; is_active: boolean }>(`/admin/users/${id}/status`, { is_active }),
+
+  setUserAdmin: (id: number, is_admin: boolean) =>
+    api.patch<{ id: number; is_admin: boolean }>(`/admin/users/${id}/admin`, { is_admin }),
 };
 
 export default api;

@@ -1,8 +1,44 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import { getCuratedNearby, filterByType, CuratedPlace } from '../db/curatedPlaces';
+import db from '../db/database';
 
 const router = Router();
+
+interface AdminPlaceRow {
+  id: number;
+  city: string;
+  name: string;
+  address: string | null;
+  lat: number;
+  lng: number;
+  category: string;
+  rating: number;
+}
+
+/** Admin-added places for a city, in the same shape as CuratedPlace. */
+function getAdminPlacesForCity(city: string | undefined, type?: string): CuratedPlace[] {
+  if (!city) return [];
+  let sql = 'SELECT * FROM admin_places WHERE lower(city) = lower(?)';
+  const params: any[] = [city];
+  if (type) {
+    sql += ' AND category = ?';
+    params.push(type);
+  }
+  const rows = db.prepare(sql).all(...params) as AdminPlaceRow[];
+  return rows.map(r => ({
+    place_id: `admin-${r.id}`,
+    name: r.name,
+    address: r.address ?? '',
+    lat: r.lat,
+    lng: r.lng,
+    rating: r.rating,
+    user_ratings_total: 0,
+    types: [r.category, 'point_of_interest'],
+    photo_reference: null,
+    opening_hours: null,
+  }));
+}
 
 const MAPS_KEY = () => process.env.GOOGLE_MAPS_API_KEY as string;
 
@@ -28,8 +64,16 @@ router.get('/nearby', async (req: Request, res: Response): Promise<void> => {
   const typeStr = type ? String(type) : undefined;
   const cityStr = city ? String(city) : undefined;
 
-  const buildFallback = (): CuratedPlace[] =>
-    filterByType(getCuratedNearby(cityStr, latNum, lngNum), typeStr);
+  /**
+   * Fallback = admin-added (DB) + curated (hand-written) for this city, both
+   * filtered by the requested type. Admin entries come first so they show on
+   * top of any duplicates.
+   */
+  const buildFallback = (): CuratedPlace[] => {
+    const admin = getAdminPlacesForCity(cityStr, typeStr);
+    const curated = filterByType(getCuratedNearby(cityStr, latNum, lngNum), typeStr);
+    return [...admin, ...curated];
+  };
 
   const key = MAPS_KEY();
   if (!key) {
@@ -73,11 +117,15 @@ router.get('/nearby', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Always prepend admin-added places for this city so staff picks surface
+    // on top of Google results as well.
+    const adminExtras = getAdminPlacesForCity(cityStr, typeStr);
+
     res.json({
-      results,
+      results: [...adminExtras, ...results],
       status: response.data.status,
       next_page_token: response.data.next_page_token ?? null,
-      source: 'google',
+      source: adminExtras.length ? 'google+admin' : 'google',
     });
   } catch (err: any) {
     console.error('Places API error:', err.message);

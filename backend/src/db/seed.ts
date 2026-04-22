@@ -1,7 +1,44 @@
 import { initSchema } from './schema';
 import db from './database';
+import bcrypt from 'bcryptjs';
 
 initSchema();
+
+// ── Default admin user ──────────────────────────────────────────────────────
+// Seeded on first run; safe to re-run (INSERT OR IGNORE + promotion pass).
+const DEFAULT_ADMIN = {
+  username: 'admin',
+  email: 'admin@volleytrip.local',
+  password: 'admin123',
+};
+
+const existingAdmin = db
+  .prepare('SELECT id FROM users WHERE email = ?')
+  .get(DEFAULT_ADMIN.email);
+
+if (!existingAdmin) {
+  const hash = bcrypt.hashSync(DEFAULT_ADMIN.password, 10);
+  db.prepare(
+    `INSERT INTO users (username, email, password_hash, is_admin, is_active)
+     VALUES (?, ?, ?, 1, 1)`
+  ).run(DEFAULT_ADMIN.username, DEFAULT_ADMIN.email, hash);
+  console.log(
+    `Seeded default admin: ${DEFAULT_ADMIN.email} / ${DEFAULT_ADMIN.password} — change this password after first login.`
+  );
+} else {
+  // Ensure the default admin always retains admin rights + active status.
+  db.prepare('UPDATE users SET is_admin = 1, is_active = 1 WHERE email = ?')
+    .run(DEFAULT_ADMIN.email);
+}
+
+// Promote any emails listed in ADMIN_EMAILS (comma-separated) to admin.
+const whitelist = (process.env.ADMIN_EMAILS ?? '')
+  .split(',')
+  .map(e => e.trim().toLowerCase())
+  .filter(Boolean);
+for (const email of whitelist) {
+  db.prepare('UPDATE users SET is_admin = 1 WHERE lower(email) = ?').run(email);
+}
 
 const teams = [
   // ─── Italy: SuperLega ───────────────────────────────────────────────

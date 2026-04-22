@@ -15,11 +15,13 @@ import SportsVolleyballIcon from '@mui/icons-material/SportsVolleyball';
 import MapIcon from '@mui/icons-material/Map';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
+import SettingsIcon from '@mui/icons-material/Settings';
 import { useAuth } from '../../context/AuthContext';
 
-const NAV_LINKS = [
-  { label: 'Teams', to: '/teams' },
+const NAV_LINKS: { label: string; to: string; auth?: boolean; admin?: boolean }[] = [
+  { label: 'Teams',    to: '/teams' },
   { label: 'My Trips', to: '/itineraries', auth: true },
+  { label: 'Admin',    to: '/admin', admin: true },
 ];
 
 export default function Navbar() {
@@ -56,7 +58,9 @@ export default function Navbar() {
 
         {/* Nav links */}
         <Box sx={{ display: 'flex', gap: 0.5, flex: 1 }}>
-          {NAV_LINKS.filter(l => !l.auth || user).map(link => {
+          {NAV_LINKS
+            .filter(l => (!l.auth || user) && (!l.admin || user?.is_admin))
+            .map(link => {
             const active = location.pathname.startsWith(link.to);
             return (
               <Button
@@ -135,6 +139,12 @@ export default function Navbar() {
                 <ListItemIcon><MapIcon fontSize="small" sx={{ color: 'secondary.main' }} /></ListItemIcon>
                 My Trips
               </MenuItem>
+              {user.is_admin && (
+                <MenuItem onClick={() => { setAnchorEl(null); navigate('/admin'); }}>
+                  <ListItemIcon><SettingsIcon fontSize="small" sx={{ color: 'primary.main' }} /></ListItemIcon>
+                  Admin console
+                </MenuItem>
+              )}
               <Divider sx={{ my: 1 }} />
               <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
                 <ListItemIcon><LogoutIcon fontSize="small" sx={{ color: 'error.main' }} /></ListItemIcon>
