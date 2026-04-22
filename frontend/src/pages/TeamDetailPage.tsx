@@ -59,8 +59,9 @@ export default function TeamDetailPage() {
     if (!team) return;
     setLoadingPlaces(true);
     const type = placeType === 'all' ? undefined : placeType;
-    placesApi.nearby({ lat: team.lat, lng: team.lng, type, radius: 3000 })
+    placesApi.nearby({ lat: team.lat, lng: team.lng, type, radius: 3000, city: team.city })
       .then(({ data }) => setPlaces(data.results))
+      .catch(() => setPlaces([]))
       .finally(() => setLoadingPlaces(false));
   }, [team, placeType]);
 
@@ -155,11 +156,11 @@ export default function TeamDetailPage() {
                     mapId="volleytrip-map"
                     style={{ width: '100%', height: '100%' }}
                     disableDefaultUI={false}
-                    colorScheme="DARK"
+                    colorScheme="LIGHT"
                   >
                     {/* Arena marker */}
                     <AdvancedMarker position={{ lat: team.lat, lng: team.lng }} title={team.arena_name}>
-                      <Pin background={team.primary_color} borderColor="#0A0E1A" glyphColor="#fff" scale={1.3} />
+                      <Pin background={team.primary_color} borderColor="#ffffff" glyphColor="#ffffff" scale={1.3} />
                     </AdvancedMarker>
 
                     {/* Nearby places markers */}
@@ -171,9 +172,9 @@ export default function TeamDetailPage() {
                         onClick={() => setSelectedPlace(place)}
                       >
                         <Pin
-                          background={selectedPlace?.place_id === place.place_id ? '#00D4AA' : '#1E2538'}
-                          borderColor={selectedPlace?.place_id === place.place_id ? '#00A87E' : '#3A4060'}
-                          glyphColor="#F0EDE8"
+                          background={selectedPlace?.place_id === place.place_id ? '#ea517f' : '#2376b7'}
+                          borderColor={selectedPlace?.place_id === place.place_id ? '#c53d66' : '#1a5b8f'}
+                          glyphColor="#ffffff"
                           scale={0.85}
                         />
                       </AdvancedMarker>
@@ -213,17 +214,17 @@ export default function TeamDetailPage() {
                 size="small"
                 sx={{
                   '& .MuiToggleButton-root': {
-                    border: '1px solid rgba(240,237,232,0.1)',
-                    borderRadius: '4px !important',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: '5px !important',
                     color: 'text.secondary',
                     fontSize: '0.7rem',
                     fontWeight: 600,
                     px: 1.25,
                     py: 0.5,
                     '&.Mui-selected': {
-                      background: 'rgba(0,212,170,0.1)',
-                      borderColor: 'rgba(0,212,170,0.4)',
-                      color: 'secondary.main',
+                      background: 'var(--color-primary-soft)',
+                      borderColor: 'var(--color-primary)',
+                      color: 'primary.main',
                     },
                   },
                 }}
@@ -255,9 +256,12 @@ export default function TeamDetailPage() {
                       sx={{
                         cursor: 'pointer',
                         border: selectedPlace?.place_id === place.place_id
-                          ? '1px solid rgba(0,212,170,0.4)'
-                          : '1px solid rgba(240,237,232,0.06)',
-                        transition: 'border-color 0.15s ease',
+                          ? '1px solid var(--color-accent)'
+                          : '1px solid var(--color-border)',
+                        background: selectedPlace?.place_id === place.place_id
+                          ? 'var(--color-accent-soft)'
+                          : '#ffffff',
+                        transition: 'border-color 0.15s ease, background 0.15s ease',
                       }}
                     >
                       <CardContent sx={{ p: '12px 16px !important', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
