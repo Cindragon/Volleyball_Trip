@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+/* ── Google Fonts ───────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600;1,700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
+
+/* ── CSS Custom Properties ──────────────────────────────────────────────────── */
+:root {
+  --color-bg:        #0A0E1A;
+  --color-surface:   #141929;
+  --color-surface2:  #1E2538;
+  --color-border:    rgba(240,237,232,0.08);
+  --color-coral:     #FF6B35;
+  --color-teal:      #00D4AA;
+  --color-gold:      #F5C842;
+  --color-text:      #F0EDE8;
+  --color-muted:     #8B91A7;
+  --font-display:    'Playfair Display', Georgia, serif;
+  --font-body:       'DM Sans', 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* ── Base ───────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Volleyball Court Pattern (decorative) ──────────────────────────────────── */
+.court-pattern {
+  background-image:
+    linear-gradient(rgba(255,107,53,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,107,53,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--color-bg); }
+::-webkit-scrollbar-thumb { background: #2A3050; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3A4060; }
+
+/* ── Animations ─────────────────────────────────────────────────────────────── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+@keyframes pulse-coral {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,53,0); }
+  50%       { box-shadow: 0 0 0 8px rgba(255,107,53,0.15); }
+}
+
+.animate-fade-up  { animation: fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-fade-in  { animation: fade-in 0.4s ease both; }
+
+.skeleton {
+  background: linear-gradient(90deg, #1E2538 25%, #2A3050 50%, #1E2538 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+/* Staggered children animations */
+.stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger > *:nth-child(2) { animation-delay: 0.10s; }
+.stagger > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger > *:nth-child(4) { animation-delay: 0.20s; }
+.stagger > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger > *:nth-child(6) { animation-delay: 0.30s; }
+
+/* ── League badge colors ────────────────────────────────────────────────────── */
+.badge-italy  { background: rgba(0,146,70,0.15);  color: #33C97A; border: 1px solid rgba(0,200,83,0.25); }
+.badge-japan  { background: rgba(188,0,45,0.15);  color: #FF6B8A; border: 1px solid rgba(255,77,106,0.25); }
+.badge-poland { background: rgba(220,20,60,0.12); color: #FF8FA3; border: 1px solid rgba(220,20,60,0.25); }
+.badge-turkey { background: rgba(255,107,53,0.12); color: #FF8F62; border: 1px solid rgba(255,107,53,0.25); }
+
+/* ── Map container ──────────────────────────────────────────────────────────── */
+.map-container {
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+/* ── Card hover lift ────────────────────────────────────────────────────────── */
+.card-lift {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.2s ease;
+}
+.card-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.45);
+}
+
+/* ── Glow accents ───────────────────────────────────────────────────────────── */
+.glow-coral { box-shadow: 0 0 24px rgba(255,107,53,0.3); }
+.glow-teal  { box-shadow: 0 0 24px rgba(0,212,170,0.25); }
+
+/* ── Section divider ────────────────────────────────────────────────────────── */
+.section-label {
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-coral);
+}
+
+/* ── Diagonal hero accent ───────────────────────────────────────────────────── */
+.hero-diagonal::before {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 80px;
+  background: var(--color-bg);
+  clip-path: polygon(0 100%, 100% 0, 100% 100%);
+  z-index: 2;
+}
