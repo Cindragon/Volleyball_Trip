@@ -14,7 +14,35 @@ const app = express();
 const PORT = process.env.PORT ?? 3001;
 
 // ── Middleware ────────────────────────────────────────────────────────────────
-app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
+/**
+ * CORS: allow local dev origins + any ngrok-free.app tunnel + optional extras
+ * from FRONTEND_URL (comma-separated). Requests with no origin (curl, mobile
+ * apps, same-origin) are always allowed.
+ */
+const STATIC_ALLOWED_ORIGINS = new Set<string>([
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+]);
+
+const extraOrigins = (process.env.FRONTEND_URL ?? '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+extraOrigins.forEach(o => STATIC_ALLOWED_ORIGINS.add(o));
+
+const NGROK_FREE_REGEX = /^https:\/\/[a-z0-9-]+\.ngrok-free\.app$/i;
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (STATIC_ALLOWED_ORIGINS.has(origin)) return callback(null, true);
+      if (NGROK_FREE_REGEX.test(origin)) return callback(null, true);
+      return callback(new Error(`CORS: origin ${origin} not allowed`));
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // ── DB init on startup ────────────────────────────────────────────────────────

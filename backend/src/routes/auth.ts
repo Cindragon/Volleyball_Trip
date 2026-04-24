@@ -5,6 +5,9 @@ import db from '../db/database';
 
 const router = Router();
 
+/** Basic email syntax check: one "@" and a "." in the domain part. */
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 /** Comma-separated email whitelist → auto-promote to admin on register. */
 function isWhitelistedAdmin(email: string): boolean {
   const list = (process.env.ADMIN_EMAILS ?? '')
@@ -42,8 +45,16 @@ router.post('/register', (req: Request, res: Response): void => {
     res.status(400).json({ error: 'username, email, and password are required' });
     return;
   }
-  if (password.length < 6) {
-    res.status(400).json({ error: 'Password must be at least 6 characters' });
+  if (typeof email !== 'string' || !EMAIL_REGEX.test(email)) {
+    res.status(422).json({ error: 'Invalid email format' });
+    return;
+  }
+  if (typeof password !== 'string' || password.length < 6) {
+    res.status(422).json({ error: 'Password must be at least 6 characters' });
+    return;
+  }
+  if (typeof username !== 'string' || username.trim().length < 2) {
+    res.status(422).json({ error: 'Username must be at least 2 characters' });
     return;
   }
 
@@ -89,6 +100,10 @@ router.post('/login', (req: Request, res: Response): void => {
 
   if (!email || !password) {
     res.status(400).json({ error: 'email and password are required' });
+    return;
+  }
+  if (typeof email !== 'string' || !EMAIL_REGEX.test(email)) {
+    res.status(422).json({ error: 'Invalid email format' });
     return;
   }
 

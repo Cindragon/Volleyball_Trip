@@ -1,8 +1,17 @@
 import axios from 'axios';
 import type { Team, Itinerary, ItineraryStop, NearbyPlace, User, AdminPlace } from '../types';
 
+/**
+ * Backend origin — configurable via VITE_API_BASE_URL so the frontend can point
+ * at an ngrok tunnel (or any deployed host) without code changes. Trailing
+ * slashes are stripped so we can safely append paths.
+ */
+const API_ORIGIN = (
+  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001'
+).replace(/\/+$/, '');
+
 const api = axios.create({
-  baseURL: 'http://localhost:3001/api',
+  baseURL: `${API_ORIGIN}/api`,
 });
 
 // Attach JWT token to every request
@@ -75,7 +84,7 @@ export const placesApi = {
     api.get<{ results: NearbyPlace[]; status: string; source?: 'google' | 'curated' }>('/places/nearby', { params }),
 
   photoUrl: (ref: string, maxwidth = 400) =>
-    `http://localhost:3001/api/places/photo?ref=${ref}&maxwidth=${maxwidth}`,
+    `${API_ORIGIN}/api/places/photo?ref=${ref}&maxwidth=${maxwidth}`,
 };
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
