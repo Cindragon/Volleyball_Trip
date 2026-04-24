@@ -81,17 +81,17 @@ export default function HomePage() {
               animationDelay: '0.08s',
             }}
           >
-            Follow Your Team.<br />
-            <Box component="span" sx={{ color: 'primary.main' }}>Explore the City.</Box>
+            FInd Your Team<br />
+            <Box component="span" sx={{ color: 'primary.main' }}>Explore their Home City</Box>
           </Typography>
 
           <Typography
             variant="body1"
             color="text.secondary"
             className="animate-fade-up"
-            sx={{ fontSize: { xs: '1rem', md: '1.15rem' }, maxWidth: 520, mx: 'auto', mb: 4, animationDelay: '0.16s', lineHeight: 1.7 }}
+            sx={{ fontSize: { xs: '1rem', md: '1.15rem' }, maxWidth: 560, mx: 'auto', mb: 4, animationDelay: '0.16s', lineHeight: 1.7 }}
           >
-            Plan a 2-day volleyball pilgrimage to any team's home arena —
+            Plan your own volleyball pilgrimage to any team's home arena —
             discover nearby sights, restaurants, and hotels along the way.
           </Typography>
 
