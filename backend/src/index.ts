@@ -60,6 +60,15 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.get('/', (_req, res) => {
+  res.json({
+    name: 'VolleyTrip API',
+    version: '1.0.0',
+    docs: 'See README for endpoints',
+    health: '/api/health',
+  });
+});
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`VolleyTrip API running on http://localhost:${PORT}`);
