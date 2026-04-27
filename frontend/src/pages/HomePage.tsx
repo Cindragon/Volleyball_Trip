@@ -43,7 +43,7 @@ export default function HomePage() {
           position: 'absolute', top: '40%', left: '50%',
           transform: 'translate(-50%, -50%)',
           width: 900, height: 600, borderRadius: '50%',
-          background: 'radial-gradient(ellipse, rgba(255,107,53,0.09) 0%, transparent 65%)',
+          background: 'radial-gradient(ellipse, rgba(180, 172, 169, 0.09) 0%, transparent 65%)',
           pointerEvents: 'none',
         }} />
         {/* Second glow */}
@@ -136,7 +136,7 @@ export default function HomePage() {
                   p: 3,
                   borderRadius: 1,
                   border: '1px solid rgba(240,237,232,0.06)',
-                  background: '#141929',
+                  background: '#ebf0ff',
                   cursor: 'pointer',
                   textAlign: 'center',
                   '&:hover': { borderColor: l.accent + '50' },
@@ -162,7 +162,7 @@ export default function HomePage() {
       </Container>
 
       {/* ── How it works ──────────────────────────────────────────────── */}
-      <Box sx={{ py: 8, borderTop: '1px solid', borderColor: 'divider', background: '#0D1221' }} className="court-pattern">
+      <Box sx={{ py: 8, borderTop: '1px solid', borderColor: 'divider', background: '#ebf0ff' }} className="court-pattern">
         <Container maxWidth="lg">
           <Box sx={{ textAlign: 'center', mb: 6 }}>
             <Typography className="section-label" sx={{ mb: 1.5 }}>How it works</Typography>

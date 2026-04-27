@@ -146,7 +146,7 @@ export default function ItinerariesPage() {
                 My Trips
               </Typography>
               <Typography color="text.secondary" variant="body2" sx={{ mt: 0.5 }}>
-                Your 2-day volleyball pilgrimages
+                Your volleyball pilgrimages
               </Typography>
             </Box>
             <Button
