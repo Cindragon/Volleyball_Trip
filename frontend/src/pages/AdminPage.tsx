@@ -137,7 +137,7 @@ export default function AdminPage() {
       {/* ── Teams tab ──────────────────────────────────────────────────── */}
       {tab === 'teams' && (
         <Box>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+          <Stack direction="row" sx={{ mb: 2, justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="body2" color="text.secondary">
               Add new volleyball teams or remove existing ones. Deleting a team also removes its trips.
             </Typography>
@@ -152,7 +152,7 @@ export default function AdminPage() {
       {/* ── Places tab ─────────────────────────────────────────────────── */}
       {tab === 'places' && (
         <Box>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+          <Stack direction="row" sx={{ mb: 2, justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="body2" color="text.secondary">
               Add curated attractions to show up for a given city. Entries here are merged with Google Places results.
             </Typography>
@@ -167,7 +167,7 @@ export default function AdminPage() {
       {/* ── Users tab ──────────────────────────────────────────────────── */}
       {tab === 'users' && (
         <Box>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+          <Stack direction="row" sx={{ mb: 2, justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="body2" color="text.secondary">
               Deactivating a member prevents sign-in but preserves their data. You cannot modify your own status.
             </Typography>
@@ -491,7 +491,7 @@ function NewPlaceDialog({
             value={f.city}
             onChange={upd('city')}
             select={cities.length > 0}
-            SelectProps={{ native: false }}
+            slotProps={{ select: { native: false } }}
             fullWidth
             size="small"
             helperText="Match a team's city exactly (case-insensitive)"

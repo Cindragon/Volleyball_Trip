@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import db from '../db/database';
+import sql from '../db/database';
 
 export interface AuthRequest extends Request {
   userId?: number;
@@ -8,14 +8,6 @@ export interface AuthRequest extends Request {
   isAdmin?: boolean;
 }
 
-interface UserRow {
-  id: number;
-  username: string;
-  is_admin: number;
-  is_active: number;
-}
-
-/** Verify JWT, reject suspended accounts, attach user info to request. */
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
@@ -24,16 +16,22 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
   }
 
   const token = authHeader.slice(7);
+  let payload: { userId: number; username: string };
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET as string) as {
+    payload = jwt.verify(token, process.env.JWT_SECRET as string) as {
       userId: number;
       username: string;
     };
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired token' });
+    return;
+  }
 
-    const row = db
-      .prepare('SELECT id, username, is_admin, is_active FROM users WHERE id = ?')
-      .get(payload.userId) as UserRow | undefined;
-
+  (async () => {
+    const [row] = await sql`
+      SELECT id, username, is_admin, is_active
+      FROM users WHERE id = ${payload.userId}
+    `;
     if (!row) {
       res.status(401).json({ error: 'User no longer exists' });
       return;
@@ -42,17 +40,15 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
       res.status(403).json({ error: 'Account has been deactivated' });
       return;
     }
-
-    req.userId = row.id;
-    req.username = row.username;
-    req.isAdmin = !!row.is_admin;
+    req.userId = row.id as number;
+    req.username = row.username as string;
+    req.isAdmin = row.is_admin as boolean;
     next();
-  } catch {
-    res.status(401).json({ error: 'Invalid or expired token' });
-  }
+  })().catch(() => {
+    res.status(500).json({ error: 'Internal server error' });
+  });
 }
 
-/** Chain after requireAuth — only admins pass. */
 export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction): void {
   requireAuth(req, res, (err?: any) => {
     if (err) return next(err);

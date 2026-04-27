@@ -1,14 +1,12 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import db from '../db/database';
+import sql from '../db/database';
 
 const router = Router();
 
-/** Basic email syntax check: one "@" and a "." in the domain part. */
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Comma-separated email whitelist → auto-promote to admin on register. */
 function isWhitelistedAdmin(email: string): boolean {
   const list = (process.env.ADMIN_EMAILS ?? '')
     .split(',')
@@ -38,7 +36,7 @@ function toPublicUser(row: any): PublicUser {
 }
 
 // POST /api/auth/register
-router.post('/register', (req: Request, res: Response): void => {
+router.post('/register', async (req: Request, res: Response): Promise<void> => {
   const { username, email, password } = req.body;
 
   if (!username || !email || !password) {
@@ -58,44 +56,40 @@ router.post('/register', (req: Request, res: Response): void => {
     return;
   }
 
-  const existing = db
-    .prepare('SELECT id FROM users WHERE email = ? OR username = ?')
-    .get(email, username);
-  if (existing) {
-    res.status(409).json({ error: 'Email or username already taken' });
-    return;
+  try {
+    const existing = await sql`
+      SELECT id FROM users WHERE email = ${email} OR username = ${username}
+    `;
+    if (existing.length > 0) {
+      res.status(409).json({ error: 'Email or username already taken' });
+      return;
+    }
+
+    const password_hash = bcrypt.hashSync(password, 10);
+    const is_admin = isWhitelistedAdmin(email);
+    const [row] = await sql`
+      INSERT INTO users (username, email, password_hash, is_admin, is_active)
+      VALUES (${username}, ${email}, ${password_hash}, ${is_admin}, true)
+      RETURNING id
+    `;
+
+    const token = jwt.sign(
+      { userId: row.id, username },
+      process.env.JWT_SECRET as string,
+      { expiresIn: '7d' }
+    );
+
+    res.status(201).json({
+      token,
+      user: toPublicUser({ id: row.id, username, email, is_admin, is_active: true }),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
-
-  const password_hash = bcrypt.hashSync(password, 10);
-  const is_admin = isWhitelistedAdmin(email) ? 1 : 0;
-  const result = db
-    .prepare(
-      `INSERT INTO users (username, email, password_hash, is_admin, is_active)
-       VALUES (?, ?, ?, ?, 1)`
-    )
-    .run(username, email, password_hash, is_admin);
-
-  const newId = Number(result.lastInsertRowid);
-  const token = jwt.sign(
-    { userId: newId, username },
-    process.env.JWT_SECRET as string,
-    { expiresIn: '7d' }
-  );
-
-  res.status(201).json({
-    token,
-    user: toPublicUser({
-      id: newId,
-      username,
-      email,
-      is_admin,
-      is_active: 1,
-    }),
-  });
 });
 
 // POST /api/auth/login
-router.post('/login', (req: Request, res: Response): void => {
+router.post('/login', async (req: Request, res: Response): Promise<void> => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -107,40 +101,32 @@ router.post('/login', (req: Request, res: Response): void => {
     return;
   }
 
-  const user = db
-    .prepare('SELECT * FROM users WHERE email = ?')
-    .get(email) as
-    | {
-        id: number;
-        username: string;
-        email: string;
-        password_hash: string;
-        is_admin: number;
-        is_active: number;
-        created_at: string;
-      }
-    | undefined;
+  try {
+    const [user] = await sql`SELECT * FROM users WHERE email = ${email}`;
 
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
-    res.status(401).json({ error: 'Invalid email or password' });
-    return;
+    if (!user || !bcrypt.compareSync(password, user.password_hash as string)) {
+      res.status(401).json({ error: 'Invalid email or password' });
+      return;
+    }
+    if (!user.is_active) {
+      res.status(403).json({ error: 'Account has been deactivated' });
+      return;
+    }
+
+    const token = jwt.sign(
+      { userId: user.id, username: user.username },
+      process.env.JWT_SECRET as string,
+      { expiresIn: '7d' }
+    );
+
+    res.json({ token, user: toPublicUser(user) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
-  if (!user.is_active) {
-    res.status(403).json({ error: 'Account has been deactivated' });
-    return;
-  }
-
-  const token = jwt.sign(
-    { userId: user.id, username: user.username },
-    process.env.JWT_SECRET as string,
-    { expiresIn: '7d' }
-  );
-
-  res.json({ token, user: toPublicUser(user) });
 });
 
 // GET /api/auth/me
-router.get('/me', (req: Request, res: Response): void => {
+router.get('/me', async (req: Request, res: Response): Promise<void> => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
     res.status(401).json({ error: 'Not authenticated' });
@@ -152,11 +138,10 @@ router.get('/me', (req: Request, res: Response): void => {
       process.env.JWT_SECRET as string
     ) as { userId: number; username: string };
 
-    const user = db
-      .prepare(
-        'SELECT id, username, email, is_admin, is_active, created_at FROM users WHERE id = ?'
-      )
-      .get(payload.userId) as any;
+    const [user] = await sql`
+      SELECT id, username, email, is_admin, is_active, created_at
+      FROM users WHERE id = ${payload.userId}
+    `;
 
     if (!user) {
       res.status(404).json({ error: 'User not found' });

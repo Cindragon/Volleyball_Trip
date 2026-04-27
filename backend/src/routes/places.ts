@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import { getCuratedNearby, filterByType, CuratedPlace } from '../db/curatedPlaces';
-import db from '../db/database';
+import sql from '../db/database';
 
 const router = Router();
 
@@ -16,16 +16,18 @@ interface AdminPlaceRow {
   rating: number;
 }
 
-/** Admin-added places for a city, in the same shape as CuratedPlace. */
-function getAdminPlacesForCity(city: string | undefined, type?: string): CuratedPlace[] {
+async function getAdminPlacesForCity(
+  city: string | undefined,
+  type?: string
+): Promise<CuratedPlace[]> {
   if (!city) return [];
-  let sql = 'SELECT * FROM admin_places WHERE lower(city) = lower(?)';
-  const params: any[] = [city];
-  if (type) {
-    sql += ' AND category = ?';
-    params.push(type);
-  }
-  const rows = db.prepare(sql).all(...params) as AdminPlaceRow[];
+
+  const rows = (
+    type
+      ? await sql`SELECT * FROM admin_places WHERE lower(city) = lower(${city}) AND category = ${type}`
+      : await sql`SELECT * FROM admin_places WHERE lower(city) = lower(${city})`
+  ) as unknown as AdminPlaceRow[];
+
   return rows.map(r => ({
     place_id: `admin-${r.id}`,
     name: r.name,
@@ -42,15 +44,6 @@ function getAdminPlacesForCity(city: string | undefined, type?: string): Curated
 
 const MAPS_KEY = () => process.env.GOOGLE_MAPS_API_KEY as string;
 
-/**
- * GET /api/places/nearby
- * Query params: lat, lng, type, radius (default 2000m), keyword, city
- *
- * Primary source: Google Places Nearby Search (proxied so the API key stays
- * server-side). When Google isn't configured, errors, or returns zero results
- * for the selected type, falls back to a curated dataset keyed by `city` so
- * the arena always surfaces recommended spots to the user.
- */
 router.get('/nearby', async (req: Request, res: Response): Promise<void> => {
   const { lat, lng, type, radius = '2000', keyword, city } = req.query;
 
@@ -64,20 +57,15 @@ router.get('/nearby', async (req: Request, res: Response): Promise<void> => {
   const typeStr = type ? String(type) : undefined;
   const cityStr = city ? String(city) : undefined;
 
-  /**
-   * Fallback = admin-added (DB) + curated (hand-written) for this city, both
-   * filtered by the requested type. Admin entries come first so they show on
-   * top of any duplicates.
-   */
-  const buildFallback = (): CuratedPlace[] => {
-    const admin = getAdminPlacesForCity(cityStr, typeStr);
+  const buildFallback = async (): Promise<CuratedPlace[]> => {
+    const admin = await getAdminPlacesForCity(cityStr, typeStr);
     const curated = filterByType(getCuratedNearby(cityStr, latNum, lngNum), typeStr);
     return [...admin, ...curated];
   };
 
   const key = MAPS_KEY();
   if (!key) {
-    res.json({ results: buildFallback(), status: 'OK', source: 'curated' });
+    res.json({ results: await buildFallback(), status: 'OK', source: 'curated' });
     return;
   }
 
@@ -87,15 +75,15 @@ router.get('/nearby', async (req: Request, res: Response): Promise<void> => {
       radius: radius as string,
       key,
     };
-    if (typeStr)  params.type    = typeStr;
-    if (keyword)  params.keyword = keyword as string;
+    if (typeStr) params.type = typeStr;
+    if (keyword) params.keyword = keyword as string;
 
     const response = await axios.get(
       'https://maps.googleapis.com/maps/api/place/nearbysearch/json',
       { params }
     );
 
-    const results = (response.data.results as any[]).map((place) => ({
+    const results = (response.data.results as any[]).map(place => ({
       place_id: place.place_id,
       name: place.name,
       address: place.vicinity,
@@ -110,17 +98,14 @@ router.get('/nearby', async (req: Request, res: Response): Promise<void> => {
 
     if (results.length === 0) {
       res.json({
-        results: buildFallback(),
+        results: await buildFallback(),
         status: response.data.status ?? 'ZERO_RESULTS',
         source: 'curated',
       });
       return;
     }
 
-    // Always prepend admin-added places for this city so staff picks surface
-    // on top of Google results as well.
-    const adminExtras = getAdminPlacesForCity(cityStr, typeStr);
-
+    const adminExtras = await getAdminPlacesForCity(cityStr, typeStr);
     res.json({
       results: [...adminExtras, ...results],
       status: response.data.status,
@@ -129,14 +114,10 @@ router.get('/nearby', async (req: Request, res: Response): Promise<void> => {
     });
   } catch (err: any) {
     console.error('Places API error:', err.message);
-    res.json({ results: buildFallback(), status: 'OK', source: 'curated' });
+    res.json({ results: await buildFallback(), status: 'OK', source: 'curated' });
   }
 });
 
-/**
- * GET /api/places/photo?ref=PHOTO_REFERENCE&maxwidth=400
- * Proxies Google Place Photo to avoid exposing API key on the client.
- */
 router.get('/photo', async (req: Request, res: Response): Promise<void> => {
   const { ref, maxwidth = '400' } = req.query;
 
@@ -153,7 +134,8 @@ router.get('/photo', async (req: Request, res: Response): Promise<void> => {
         responseType: 'stream',
       }
     );
-    res.set('Content-Type', response.headers['content-type']);
+    const contentType = response.headers['content-type'] as string | undefined;
+    if (contentType) res.set('Content-Type', contentType);
     (response.data as NodeJS.ReadableStream).pipe(res);
   } catch (err: any) {
     console.error('Photo API error:', err.message);

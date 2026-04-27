@@ -1,58 +1,45 @@
 import { Router, Request, Response } from 'express';
-import db from '../db/database';
+import sql from '../db/database';
 
 const router = Router();
 
 // GET /api/teams?league=SuperLega&country=Italy
-router.get('/', (req: Request, res: Response): void => {
+router.get('/', async (req: Request, res: Response): Promise<void> => {
   const { league, country } = req.query;
+  const l = league as string | undefined;
+  const c = country as string | undefined;
 
-  let query = 'SELECT * FROM teams';
-  const params: string[] = [];
-  const conditions: string[] = [];
+  const teams =
+    l && c ? await sql`SELECT * FROM teams WHERE league = ${l} AND country = ${c} ORDER BY country, league, name`
+    : l      ? await sql`SELECT * FROM teams WHERE league = ${l} ORDER BY country, league, name`
+    : c      ? await sql`SELECT * FROM teams WHERE country = ${c} ORDER BY country, league, name`
+    :          await sql`SELECT * FROM teams ORDER BY country, league, name`;
 
-  if (league) {
-    conditions.push('league = ?');
-    params.push(league as string);
-  }
-  if (country) {
-    conditions.push('country = ?');
-    params.push(country as string);
-  }
-  if (conditions.length > 0) {
-    query += ' WHERE ' + conditions.join(' AND ');
-  }
-  query += ' ORDER BY country, league, name';
-
-  const teams = db.prepare(query).all(...params);
   res.json({ teams });
 });
 
 // GET /api/teams/leagues  — distinct leagues grouped by country
-router.get('/leagues', (_req: Request, res: Response): void => {
-  const rows = db
-    .prepare(`
-      SELECT DISTINCT country, league
-      FROM teams
-      ORDER BY country, league
-    `)
-    .all() as { country: string; league: string }[];
+router.get('/leagues', async (_req: Request, res: Response): Promise<void> => {
+  const rows = await sql`
+    SELECT DISTINCT country, league
+    FROM teams
+    ORDER BY country, league
+  `;
 
-  // Group by country
   const grouped: Record<string, string[]> = {};
   for (const row of rows) {
-    if (!grouped[row.country]) grouped[row.country] = [];
-    grouped[row.country].push(row.league);
+    const c = row.country as string;
+    const l = row.league as string;
+    if (!grouped[c]) grouped[c] = [];
+    grouped[c].push(l);
   }
 
   res.json({ leagues: grouped });
 });
 
 // GET /api/teams/:id
-router.get('/:id', (req: Request, res: Response): void => {
-  const team = db
-    .prepare('SELECT * FROM teams WHERE id = ?')
-    .get(req.params.id);
+router.get('/:id', async (req: Request, res: Response): Promise<void> => {
+  const [team] = await sql`SELECT * FROM teams WHERE id = ${req.params.id}`;
 
   if (!team) {
     res.status(404).json({ error: 'Team not found' });
