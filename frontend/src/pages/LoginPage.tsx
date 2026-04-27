@@ -60,7 +60,7 @@ export default function LoginPage() {
           width: '100%',
           maxWidth: 420,
           mx: 2,
-          background: 'rgba(20,25,41,0.9)',
+          background: 'rgba(215, 225, 255, 0.9)',
           backdropFilter: 'blur(20px)',
           border: '1px solid rgba(240,237,232,0.08)',
           borderRadius: 2,
