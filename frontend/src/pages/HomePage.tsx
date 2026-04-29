@@ -81,7 +81,7 @@ export default function HomePage() {
               animationDelay: '0.08s',
             }}
           >
-            FInd Your Team<br />
+            Find Your Team<br />
             <Box component="span" sx={{ color: 'primary.main' }}>Explore their Home City</Box>
           </Typography>
 
