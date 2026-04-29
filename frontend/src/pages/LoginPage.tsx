@@ -50,7 +50,7 @@ export default function LoginPage() {
       <Box sx={{
         position: 'absolute', top: '30%', left: '50%', transform: 'translate(-50%, -50%)',
         width: 600, height: 600, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(255,107,53,0.06) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, rgba(238,247,247,0.70) 0%, transparent 70%)',
         pointerEvents: 'none',
       }} />
 
@@ -60,7 +60,7 @@ export default function LoginPage() {
           width: '100%',
           maxWidth: 420,
           mx: 2,
-          background: 'rgba(215, 225, 255, 0.9)',
+          background: '#FCFFFC',
           backdropFilter: 'blur(20px)',
           border: '1px solid rgba(240,237,232,0.08)',
           borderRadius: 2,
