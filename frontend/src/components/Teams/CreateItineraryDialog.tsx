@@ -54,7 +54,7 @@ export default function CreateItineraryDialog({ team, open, onClose, onCreated }
       slotProps={{
         paper: {
           sx: {
-            background: '#1E2538',
+            background: '#ebf0ff',
             border: '1px solid rgba(240,237,232,0.1)',
             borderRadius: 2,
           },

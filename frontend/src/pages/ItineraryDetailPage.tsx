@@ -134,7 +134,7 @@ function AddStopDialog({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
-      slotProps={{ paper: { sx: { background: '#1E2538', border: '1px solid rgba(240,237,232,0.1)', borderRadius: 2, maxHeight: '80vh' } } }}>
+      slotProps={{ paper: { sx: { background: '#ebf0ff', border: '1px solid rgba(240,237,232,0.1)', borderRadius: 2, maxHeight: '80vh' } } }}>
       <DialogTitle sx={{ pb: 0 }}>
         <Typography variant="h6" sx={{ fontFamily: 'var(--font-display)' }}>Add a stop</Typography>
         <Typography variant="body2" color="text.secondary">Nearby {itinerary.arena_name}</Typography>
@@ -145,7 +145,7 @@ function AddStopDialog({
           <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>Add to:</Typography>
           <ToggleButtonGroup value={day} exclusive onChange={(_, v) => v && setDay(v)} size="small"
             sx={{ '& .MuiToggleButton-root': { px: 2, fontSize: '0.75rem', fontWeight: 700,
-              '&.Mui-selected': { background: 'rgba(255,107,53,0.15)', color: 'primary.main', borderColor: 'rgba(255,107,53,0.4)' } } }}>
+              '&.Mui-selected': { background: 'rgba(53, 255, 157, 0.15)', color: 'primary.main', borderColor: 'rgba(255,107,53,0.4)' } } }}>
             <ToggleButton value={1}>Day 1</ToggleButton>
             <ToggleButton value={2}>Day 2</ToggleButton>
           </ToggleButtonGroup>
@@ -173,7 +173,7 @@ function AddStopDialog({
               <Box key={place.place_id} sx={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 p: 1.5, borderRadius: 1, border: '1px solid rgba(240,237,232,0.07)',
-                background: 'rgba(10,14,26,0.4)',
+                background: '#ffffff',
               }}>
                 <Box sx={{ flex: 1, minWidth: 0, mr: 1 }}>
                   <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.85rem' }} noWrap>{place.name}</Typography>
