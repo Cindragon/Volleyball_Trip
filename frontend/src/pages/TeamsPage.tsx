@@ -105,7 +105,7 @@ export default function TeamsPage() {
         <Box sx={{
           position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
           width: 800, height: 400, borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(255,107,53,0.07) 0%, transparent 65%)',
+          background: 'radial-gradient(circle, rgba(238,247,247,0.70) 0%, transparent 65%)',
           pointerEvents: 'none',
         }} />
 
@@ -142,7 +142,7 @@ export default function TeamsPage() {
               justifyContent: 'center',
               gap: 0.5,
               '& .MuiToggleButton-root': {
-                border: '1px solid rgba(240,237,232,0.1)',
+                border: '1px solid rgba(10,9,12,0.18)',
                 borderRadius: '4px !important',
                 color: 'text.secondary',
                 fontSize: '0.78rem',
@@ -150,11 +150,12 @@ export default function TeamsPage() {
                 px: 2,
                 py: 0.75,
                 '&.Mui-selected': {
-                  background: 'rgba(255,107,53,0.12)',
-                  borderColor: 'rgba(255,107,53,0.4)',
-                  color: 'primary.main',
+                  background: '#2c666e',
+                  borderColor: '#0a090c',
+                  color: '#ffffff',
+                  '&:hover': { background: '#07393c' },
                 },
-                '&:hover': { background: 'rgba(240,237,232,0.05)' },
+                '&:hover': { background: 'rgba(44,102,110,0.08)' },
               },
             }}
           >
