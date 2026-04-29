@@ -60,9 +60,9 @@ export default function HomePage() {
             sx={{
               display: 'inline-flex', alignItems: 'center', gap: 0.75,
               px: 1.5, py: 0.5, mb: 3,
-              border: '1px solid rgba(255,107,53,0.3)',
+              border: '1px solid rgba(10,9,12,0.25)',
               borderRadius: 1,
-              background: 'rgba(255,107,53,0.07)',
+              background: 'rgba(238,247,247,0.70)',
             }}
           >
             <SportsVolleyballIcon sx={{ fontSize: 14, color: 'primary.main' }} />
@@ -135,8 +135,8 @@ export default function HomePage() {
                 sx={{
                   p: 3,
                   borderRadius: 1,
-                  border: '1px solid rgba(240,237,232,0.06)',
-                  background: '#ebf0ff',
+                  border: '1px solid rgba(10,9,12,0.18)',
+                  background: '#FCFFFC',
                   cursor: 'pointer',
                   textAlign: 'center',
                   '&:hover': { borderColor: l.accent + '50' },
@@ -162,7 +162,7 @@ export default function HomePage() {
       </Container>
 
       {/* ── How it works ──────────────────────────────────────────────── */}
-      <Box sx={{ py: 8, borderTop: '1px solid', borderColor: 'divider', background: '#ebf0ff' }} className="court-pattern">
+      <Box sx={{ py: 8, borderTop: '1px solid', borderColor: 'divider', background: '#FCFFFC' }} className="court-pattern">
         <Container maxWidth="lg">
           <Box sx={{ textAlign: 'center', mb: 6 }}>
             <Typography className="section-label" sx={{ mb: 1.5 }}>How it works</Typography>
@@ -177,7 +177,7 @@ export default function HomePage() {
                 <Box className="animate-fade-up" sx={{ position: 'relative', pl: 0 }}>
                   <Typography sx={{
                     fontFamily: 'var(--font-display)', fontSize: '3.5rem', fontWeight: 700,
-                    color: 'rgba(255,107,53,0.12)', lineHeight: 1, mb: 1.5,
+                    color: 'rgba(7,57,60,0.20)', lineHeight: 1, mb: 1.5,
                     userSelect: 'none',
                   }}>
                     {step.num}

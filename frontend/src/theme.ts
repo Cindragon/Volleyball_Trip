@@ -10,60 +10,56 @@ declare module '@mui/material/styles' {
 }
 
 /**
- * Bright & minimal theme, inspired by the FixIt Hugo theme.
  * Palette:
- *   - 花青 (Prussian blue)  #2376b7  → primary
- *   - 潮蓝 (tide blue)      #2983bb  → primary hover / links
- *   - 莲瓣红 (lotus pink)    #ea517f  → secondary accent
- *   - Paper white           #ffffff
- *   - Soft surface          #f8f8f8
- *   - Ink                   #161209
- *   - Muted                 #8b949e
- *   - Hairline border       #e3e3e3
+ *   - Onyx          #0a090c  → borders, ink text
+ *   - Platinum      #f0edee  → page background
+ *   - Dark Teal     #07393c  → secondary text / accents
+ *   - Stormy Teal   #2c666e  → primary buttons (white text)
+ *   - Light Teal    #eef7f7  → card / box surfaces
  */
 const theme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#2376b7',
-      light: '#2983bb',
-      dark: '#1a5b8f',
+      main: '#2c666e',
+      light: '#3d8590',
+      dark: '#07393c',
       contrastText: '#ffffff',
     },
     secondary: {
-      main: '#ea517f',
-      light: '#f07a9d',
-      dark: '#c53d66',
+      main: '#07393c',
+      light: '#2c666e',
+      dark: '#04222426',
       contrastText: '#ffffff',
     },
     accent: {
-      main: '#f5c842',
-      light: '#f8d76a',
-      dark: '#d4a71e',
+      main: '#eef7f7',
+      light: '#e3eef7',
+      dark: '#a9c9de',
     },
     background: {
-      default: '#ffffff',
-      paper: '#f8f8f8',
+      default: '#f0edee',
+      paper: '#ffffff',
     },
     text: {
-      primary: '#161209',
-      secondary: '#8b949e',
+      primary: '#0a090c',
+      secondary: '#07393c',
     },
-    divider: '#e3e3e3',
-    error: { main: '#dc3545' },
+    divider: 'rgba(10,9,12,0.18)',
+    error: { main: '#c5413f' },
     success: { main: '#2e9f6d' },
     warning: { main: '#e0a800' },
-    info: { main: '#2983bb' },
+    info: { main: '#2c666e' },
   },
   typography: {
     fontFamily:
       'system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei UI", "Segoe UI", Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif',
-    h1: { fontWeight: 700, letterSpacing: '-0.02em' },
-    h2: { fontWeight: 700, letterSpacing: '-0.02em' },
-    h3: { fontWeight: 600, letterSpacing: '-0.01em' },
-    h4: { fontWeight: 600 },
-    h5: { fontWeight: 600 },
-    h6: { fontWeight: 600 },
+    h1: { fontWeight: 700, letterSpacing: '-0.02em', color: '#0a090c' },
+    h2: { fontWeight: 700, letterSpacing: '-0.02em', color: '#0a090c' },
+    h3: { fontWeight: 600, letterSpacing: '-0.01em', color: '#07393c' },
+    h4: { fontWeight: 600, color: '#07393c' },
+    h5: { fontWeight: 600, color: '#07393c' },
+    h6: { fontWeight: 600, color: '#07393c' },
     button: {
       fontWeight: 600,
       letterSpacing: '0.01em',
@@ -80,10 +76,10 @@ const theme = createTheme({
     MuiCssBaseline: {
       styleOverrides: {
         body: {
-          background: '#ffffff',
-          color: '#161209',
+          background: '#f0edee',
+          color: '#0a090c',
           scrollbarWidth: 'thin',
-          scrollbarColor: '#a6a6a6 #ffffff',
+          scrollbarColor: '#2c666e #f0edee',
         },
       },
     },
@@ -94,16 +90,26 @@ const theme = createTheme({
           padding: '8px 20px',
         },
         contained: {
+          backgroundColor: '#2c666e',
+          color: '#ffffff',
           boxShadow: 'none',
           '&:hover': {
-            boxShadow: '0 2px 8px rgba(35,118,183,0.18)',
+            backgroundColor: '#07393c',
+            boxShadow: '0 2px 8px rgba(7,57,60,0.25)',
           },
         },
         outlined: {
-          borderColor: '#e3e3e3',
+          borderColor: '#0a090c',
+          color: '#07393c',
           '&:hover': {
-            borderColor: '#2376b7',
-            background: 'rgba(35,118,183,0.04)',
+            borderColor: '#2c666e',
+            background: 'rgba(44,102,110,0.08)',
+          },
+        },
+        text: {
+          color: '#07393c',
+          '&:hover': {
+            background: 'rgba(44,102,110,0.08)',
           },
         },
       },
@@ -111,10 +117,11 @@ const theme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          background: '#ffffff',
-          border: '1px solid #e3e3e3',
+          background: '#eef7f7',
+          border: '1px solid rgba(10,9,12,0.18)',
           borderRadius: 5,
           boxShadow: 'none',
+          color: '#0a090c',
         },
       },
     },
@@ -140,9 +147,9 @@ const theme = createTheme({
         root: {
           '& .MuiOutlinedInput-root': {
             background: '#ffffff',
-            '& fieldset': { borderColor: '#e3e3e3' },
-            '&:hover fieldset': { borderColor: '#2983bb' },
-            '&.Mui-focused fieldset': { borderColor: '#2376b7' },
+            '& fieldset': { borderColor: 'rgba(10,9,12,0.25)' },
+            '&:hover fieldset': { borderColor: '#2c666e' },
+            '&.Mui-focused fieldset': { borderColor: '#07393c' },
           },
         },
       },
@@ -150,25 +157,25 @@ const theme = createTheme({
     MuiAppBar: {
       styleOverrides: {
         root: {
-          background: 'rgba(255,255,255,0.92)',
+          background: 'rgba(240,237,238,0.92)',
           backdropFilter: 'blur(12px)',
-          color: '#161209',
-          borderBottom: '1px solid #e3e3e3',
+          color: '#0a090c',
+          borderBottom: '1px solid rgba(10,9,12,0.18)',
           boxShadow: 'none',
         },
       },
     },
     MuiDivider: {
       styleOverrides: {
-        root: { borderColor: '#ededed' },
+        root: { borderColor: 'rgba(10,9,12,0.12)' },
       },
     },
     MuiLink: {
       styleOverrides: {
         root: {
-          color: '#2376b7',
-          textDecorationColor: 'rgba(35,118,183,0.3)',
-          '&:hover': { color: '#ea517f' },
+          color: '#2c666e',
+          textDecorationColor: 'rgba(44,102,110,0.4)',
+          '&:hover': { color: '#07393c' },
         },
       },
     },

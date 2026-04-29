@@ -145,7 +145,7 @@ function AddStopDialog({
           <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>Add to:</Typography>
           <ToggleButtonGroup value={day} exclusive onChange={(_, v) => v && setDay(v)} size="small"
             sx={{ '& .MuiToggleButton-root': { px: 2, fontSize: '0.75rem', fontWeight: 700,
-              '&.Mui-selected': { background: 'rgba(53, 255, 157, 0.15)', color: 'primary.main', borderColor: 'rgba(255,107,53,0.4)' } } }}>
+              '&.Mui-selected': { background: '#2c666e', color: '#ffffff', borderColor: '#0a090c', '&:hover': { background: '#07393c' } } } }}>
             <ToggleButton value={1}>Day 1</ToggleButton>
             <ToggleButton value={2}>Day 2</ToggleButton>
           </ToggleButtonGroup>
@@ -227,7 +227,7 @@ function StopCard({
   };
 
   return (
-    <Card sx={{ border: '1px solid rgba(240,237,232,0.06)', mb: 1 }}>
+    <Card sx={{ background: 'transparent', border: '1px solid rgba(10,9,12,0.18)', mb: 1 }}>
       <CardContent sx={{ p: '12px 16px !important' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -463,7 +463,7 @@ export default function ItineraryDetailPage() {
                 >
                   {/* Arena marker */}
                   <AdvancedMarker position={arenaPos} title={itinerary.arena_name}>
-                    <Pin background={itinerary.primary_color} borderColor="#0A0E1A" glyphColor="#fff" scale={1.3} />
+                    <Pin background={itinerary.primary_color} borderColor="#0a090c" glyphColor="#fff" scale={1.3} />
                   </AdvancedMarker>
 
                   {/* Stop markers */}
@@ -475,8 +475,8 @@ export default function ItineraryDetailPage() {
                       onClick={() => setSelectedMarker(stop)}
                     >
                       <Pin
-                        background={stop.day === 1 ? '#FF6B35' : '#00D4AA'}
-                        borderColor="#0A0E1A"
+                        background={stop.day === 1 ? '#2c666e' : '#eef7f7'}
+                        borderColor="#0a090c"
                         glyphColor="#fff"
                         scale={0.9}
                       />
@@ -490,7 +490,7 @@ export default function ItineraryDetailPage() {
                       onCloseClick={() => setSelectedMarker(null)}
                     >
                       <Box sx={{ p: 0.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#0A0E1A', fontSize: '0.85rem' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#0a090c', fontSize: '0.85rem' }}>
                           {selectedMarker.name}
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#555' }}>
@@ -510,11 +510,11 @@ export default function ItineraryDetailPage() {
                 <Typography variant="caption" color="text.secondary">Arena</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                <Box sx={{ width: 12, height: 12, borderRadius: '50%', background: '#FF6B35' }} />
+                <Box sx={{ width: 12, height: 12, borderRadius: '50%', background: '#2c666e' }} />
                 <Typography variant="caption" color="text.secondary">Day 1 stops</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                <Box sx={{ width: 12, height: 12, borderRadius: '50%', background: '#00D4AA' }} />
+                <Box sx={{ width: 12, height: 12, borderRadius: '50%', background: '#eef7f7', border: '1px solid #0a090c' }} />
                 <Typography variant="caption" color="text.secondary">Day 2 stops</Typography>
               </Box>
             </Box>
