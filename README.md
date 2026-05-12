@@ -37,7 +37,7 @@ VolleyTrip 是一款地圖功能導向的全端應用，專為排球球迷設計
 
 ### 後端
 - **框架**：Node.js + Express + TypeScript（tsx watch）
-- **資料庫**：SQLite（Node.js 內建 `node:sqlite`，無需額外安裝）
+- **資料庫**：Neon PostgreSQL（Serverless）— 使用 `@neondatabase/serverless` 驅動，透過 `DATABASE_URL` 連線
 - **認證**：JWT（jsonwebtoken）+ bcryptjs
 - **Google Maps**：Places API 伺服器端代理（避免 API Key 外洩）
 
@@ -63,7 +63,7 @@ volleyball-trip/
 ├── backend/                    # Node.js + Express API
 │   ├── src/
 │   │   ├── db/
-│   │   │   ├── database.ts     # SQLite 連線（node:sqlite）
+│   │   │   ├── database.ts     # Neon PostgreSQL 連線（@neondatabase/serverless）
 │   │   │   ├── schema.ts       # 資料表定義
 │   │   │   ├── seed.ts         # 球隊種子資料（50 支）+ 預設 admin
 │   │   │   └── curatedPlaces.ts# 手工策展景點資料（25+ 城市）
@@ -76,7 +76,6 @@ volleyball-trip/
 │   │   │   ├── places.ts       # Google Places API 代理 + 備援資料
 │   │   │   └── admin.ts        # 管理員專用 API（球隊/景點/會員）
 │   │   └── index.ts            # Express 主程式
-│   ├── data/                   # SQLite 資料庫檔案（gitignore）
 │   ├── .env.example
 │   └── package.json
 │
@@ -109,7 +108,8 @@ volleyball-trip/
 ## 快速開始
 
 ### 環境需求
-- Node.js 22 以上（需要內建 `node:sqlite` 模組）
+- Node.js 18 以上
+- [Neon](https://neon.tech) PostgreSQL 資料庫（免費方案即可）
 - Google Maps API Key（需開啟 Maps JavaScript API、Places API）
 
 ### 一鍵啟動（推薦）
@@ -133,9 +133,10 @@ bash start-all.sh
 ```bash
 cd backend
 cp .env.example .env
-# 編輯 .env，填入 GOOGLE_MAPS_API_KEY 與 JWT_SECRET
+# 編輯 .env，填入 DATABASE_URL、GOOGLE_MAPS_API_KEY 與 JWT_SECRET
 npm install
-npm run seed    # 初始化資料庫、種入 50 支球隊、建立預設 admin
+npm run migrate # 在 Neon 上建立資料表
+npm run seed    # 種入 50 支球隊、建立預設 admin
 npm run dev     # 啟動於 http://localhost:3001
 ```
 
@@ -155,10 +156,11 @@ npm run dev     # 啟動於 http://localhost:5173
 
 ### 後端 `backend/.env`
 ```env
+DATABASE_URL=postgresql://user:password@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require
 PORT=3001
 JWT_SECRET=自訂一組安全的隨機字串
 GOOGLE_MAPS_API_KEY=你的_Google_Maps_API_Key
-DB_PATH=./data/volleytrip.db
+FRONTEND_URL=https://your-app.vercel.app
 ADMIN_EMAILS=你的email@example.com   # 逗號分隔，登入後自動升為 admin
 ```
 
@@ -232,7 +234,27 @@ VITE_GOOGLE_MAPS_KEY=你的_Google_Maps_API_Key
 
 ---
 
-## 資料庫結構
+## 資料庫（Neon PostgreSQL）
+
+### 為什麼選擇 Neon？
+
+[Neon](https://neon.tech) 是 Serverless PostgreSQL 服務，適合部署在 Vercel 等 Serverless 平台：
+- **Serverless 驅動**：使用 `@neondatabase/serverless` 套件，透過 HTTP 發送 SQL，無需維持長連線
+- **免費方案**：提供 0.5 GB 儲存空間，適合個人專案
+- **與 Vercel 整合良好**：同為 Serverless 架構，冷啟動快速
+
+### 連線方式
+
+```ts
+// backend/src/db/database.ts
+import { neon } from '@neondatabase/serverless';
+const sql = neon(process.env.DATABASE_URL!);
+
+// 使用 Tagged Template 語法執行查詢（自動參數化，防 SQL Injection）
+const users = await sql`SELECT * FROM users WHERE id = ${userId}`;
+```
+
+### 資料表結構
 
 ```sql
 users            -- 使用者帳號（id, username, email, password_hash, is_admin, is_active）
@@ -242,6 +264,21 @@ itinerary_stops  -- 停靠點（id, itinerary_id, name, lat, lng, day, order_ind
 admin_places     -- 管理員策展景點（id, city, name, lat, lng, category, rating）
 ```
 
+### 資料表關聯
+
+```
+users ──1:N──→ itineraries ──1:N──→ itinerary_stops
+teams ──1:N──→ itineraries
+users ──1:N──→ admin_places（created_by）
+```
+
+### 常用指令
+
+```bash
+npm run migrate  # 執行 schema.ts，建立所有資料表（CREATE TABLE IF NOT EXISTS）
+npm run seed     # 執行 seed.ts，寫入 50 支球隊 + 預設 admin 帳號
+```
+
 ---
 
 ## 技術練習重點
@@ -249,7 +286,7 @@ admin_places     -- 管理員策展景點（id, city, name, lat, lng, category, 
 - **前後端分離架構**：React SPA + RESTful API
 - **本地帳密登入**：bcrypt 雜湊 + JWT 簽發與驗證
 - **角色權限控管**：is_admin / is_active 軟刪除 + requireAdmin middleware
-- **資料庫 CRUD**：SQLite + 自定義 schema + 關聯查詢 + UNIQUE 約束
+- **資料庫 CRUD**：Neon PostgreSQL + 自定義 schema + 關聯查詢 + UNIQUE 約束
 - **Google Maps API**：地圖顯示、標記、InfoWindow
 - **Google Places API**：伺服器端代理 + 策展資料備援機制
 - **TypeScript**：前後端全型別覆蓋
