@@ -84,7 +84,7 @@ export const placesApi = {
     api.get<{ results: NearbyPlace[]; status: string; source?: 'google' | 'curated' }>('/places/nearby', { params }),
 
   photoUrl: (ref: string, maxwidth = 400) =>
-    `${API_ORIGIN}/api/places/photo?ref=${ref}&maxwidth=${maxwidth}`,
+    `${API_ORIGIN}/api/places/photo?ref=${encodeURIComponent(ref)}&maxwidth=${maxwidth}`,
 };
 
 // ── Admin ─────────────────────────────────────────────────────────────────────

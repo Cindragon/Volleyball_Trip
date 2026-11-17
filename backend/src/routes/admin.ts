@@ -1,8 +1,9 @@
-import { Router, Response } from 'express';
+import { Response } from 'express';
 import sql from '../db/database';
 import { requireAdmin, AuthRequest } from '../middleware/auth';
+import { asyncRouter } from '../middleware/asyncRouter';
 
-const router = Router();
+const router = asyncRouter();
 
 router.use(requireAdmin);
 
@@ -23,22 +24,18 @@ router.post('/teams', async (req: AuthRequest, res: Response): Promise<void> => 
     }
   }
 
-  try {
-    const [row] = await sql`
-      INSERT INTO teams
-        (name, short_name, league, country, city, arena_name, lat, lng, logo_url, primary_color, website_url)
-      VALUES (
-        ${name}, ${short_name}, ${league}, ${country}, ${city},
-        ${arena_name}, ${Number(lat)}, ${Number(lng)},
-        ${logo_url ?? null}, ${primary_color ?? '#1976d2'}, ${website_url ?? null}
-      )
-      RETURNING id
-    `;
-    const [team] = await sql`SELECT * FROM teams WHERE id = ${row.id}`;
-    res.status(201).json({ team });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+  const [row] = await sql`
+    INSERT INTO teams
+      (name, short_name, league, country, city, arena_name, lat, lng, logo_url, primary_color, website_url)
+    VALUES (
+      ${name}, ${short_name}, ${league}, ${country}, ${city},
+      ${arena_name}, ${Number(lat)}, ${Number(lng)},
+      ${logo_url ?? null}, ${primary_color ?? '#1976d2'}, ${website_url ?? null}
+    )
+    RETURNING id
+  `;
+  const [team] = await sql`SELECT * FROM teams WHERE id = ${row.id}`;
+  res.status(201).json({ team });
 });
 
 router.delete('/teams/:id', async (req: AuthRequest, res: Response): Promise<void> => {
@@ -74,23 +71,19 @@ router.post('/places', async (req: AuthRequest, res: Response): Promise<void> =>
     return;
   }
 
-  try {
-    const [row] = await sql`
-      INSERT INTO admin_places (city, name, address, lat, lng, category, rating, created_by)
-      VALUES (
-        ${city}, ${name}, ${address ?? null},
-        ${Number(lat)}, ${Number(lng)},
-        ${category},
-        ${rating !== undefined ? Number(rating) : 4.5},
-        ${req.userId ?? null}
-      )
-      RETURNING id
-    `;
-    const [place] = await sql`SELECT * FROM admin_places WHERE id = ${row.id}`;
-    res.status(201).json({ place });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+  const [row] = await sql`
+    INSERT INTO admin_places (city, name, address, lat, lng, category, rating, created_by)
+    VALUES (
+      ${city}, ${name}, ${address ?? null},
+      ${Number(lat)}, ${Number(lng)},
+      ${category},
+      ${rating !== undefined ? Number(rating) : 4.5},
+      ${req.userId ?? null}
+    )
+    RETURNING id
+  `;
+  const [place] = await sql`SELECT * FROM admin_places WHERE id = ${row.id}`;
+  res.status(201).json({ place });
 });
 
 router.delete('/places/:id', async (req: AuthRequest, res: Response): Promise<void> => {

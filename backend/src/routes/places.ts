@@ -1,9 +1,11 @@
-import { Router, Request, Response } from 'express';
+import { Request, Response } from 'express';
 import axios from 'axios';
 import { getCuratedNearby, filterByType, CuratedPlace } from '../db/curatedPlaces';
 import sql from '../db/database';
+import { asyncRouter } from '../middleware/asyncRouter';
+import { photoLimiter } from '../middleware/rateLimit';
 
-const router = Router();
+const router = asyncRouter();
 
 interface AdminPlaceRow {
   id: number;
@@ -118,11 +120,25 @@ router.get('/nearby', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-router.get('/photo', async (req: Request, res: Response): Promise<void> => {
+// Google photo references are long base64url-style tokens.
+const PHOTO_REF_REGEX = /^[A-Za-z0-9_-]{10,2048}$/;
+
+router.get('/photo', photoLimiter, async (req: Request, res: Response): Promise<void> => {
   const { ref, maxwidth = '400' } = req.query;
 
-  if (!ref) {
-    res.status(400).json({ error: 'ref is required' });
+  if (typeof ref !== 'string' || !PHOTO_REF_REGEX.test(ref)) {
+    res.status(400).json({ error: 'A valid ref is required' });
+    return;
+  }
+  const width = Number(maxwidth);
+  if (!Number.isInteger(width) || width < 1 || width > 1600) {
+    res.status(400).json({ error: 'maxwidth must be an integer between 1 and 1600' });
+    return;
+  }
+
+  const key = MAPS_KEY();
+  if (!key) {
+    res.status(503).json({ error: 'Photo service not configured' });
     return;
   }
 
@@ -130,12 +146,14 @@ router.get('/photo', async (req: Request, res: Response): Promise<void> => {
     const response = await axios.get(
       'https://maps.googleapis.com/maps/api/place/photo',
       {
-        params: { photoreference: ref, maxwidth, key: MAPS_KEY() },
+        params: { photoreference: ref, maxwidth: width, key },
         responseType: 'stream',
       }
     );
     const contentType = response.headers['content-type'] as string | undefined;
     if (contentType) res.set('Content-Type', contentType);
+    // Let browsers/CDNs cache photos so repeat views don't spend API quota.
+    res.set('Cache-Control', 'public, max-age=86400');
     (response.data as NodeJS.ReadableStream).pipe(res);
   } catch (err: any) {
     console.error('Photo API error:', err.message);

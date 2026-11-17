@@ -1,7 +1,8 @@
-import { Router, Request, Response } from 'express';
+import { Request, Response } from 'express';
 import sql from '../db/database';
+import { asyncRouter } from '../middleware/asyncRouter';
 
-const router = Router();
+const router = asyncRouter();
 
 // GET /api/teams?league=SuperLega&country=Italy
 router.get('/', async (req: Request, res: Response): Promise<void> => {
