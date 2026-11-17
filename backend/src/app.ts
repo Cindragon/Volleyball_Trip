@@ -7,9 +7,22 @@ import itinerariesRouter from './routes/itineraries';
 import placesRouter from './routes/places';
 import adminRouter from './routes/admin';
 
+import { errorHandler, notFound } from './middleware/errorHandler';
+
 dotenv.config();
 
+// Fail fast instead of crashing on the first login/register request.
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
+  throw new Error('JWT_SECRET must be set and at least 16 characters long');
+}
+
 const app = express();
+
+// Behind Vercel / ngrok the client IP arrives in X-Forwarded-For; trust one
+// proxy hop so rate limiting keys on the real client, not the proxy.
+if (process.env.VERCEL || process.env.TRUST_PROXY === '1') {
+  app.set('trust proxy', 1);
+}
 
 const STATIC_ALLOWED_ORIGINS = new Set<string>([
   'http://localhost:5173',
@@ -50,5 +63,8 @@ app.get('/api/health', (_req, res) => {
 app.get('/', (_req, res) => {
   res.json({ name: 'VolleyTrip API', version: '1.0.0', health: '/api/health' });
 });
+
+app.use(notFound);
+app.use(errorHandler);
 
 export default app;

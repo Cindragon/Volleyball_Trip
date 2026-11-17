@@ -1,8 +1,9 @@
-import { Router, Response } from 'express';
+import { Response } from 'express';
 import sql from '../db/database';
 import { requireAuth, AuthRequest } from '../middleware/auth';
+import { asyncRouter } from '../middleware/asyncRouter';
 
-const router = Router();
+const router = asyncRouter();
 
 router.use(requireAuth);
 
@@ -31,31 +32,27 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
     return;
   }
 
-  try {
-    const [team] = await sql`SELECT id FROM teams WHERE id = ${team_id}`;
-    if (!team) {
-      res.status(404).json({ error: 'Team not found' });
-      return;
-    }
-
-    const [row] = await sql`
-      INSERT INTO itineraries (user_id, team_id, title, visit_date, notes)
-      VALUES (${req.userId}, ${team_id}, ${title}, ${visit_date}, ${notes ?? null})
-      RETURNING id
-    `;
-
-    const [itinerary] = await sql`
-      SELECT i.*, t.name AS team_name, t.short_name AS team_short_name,
-             t.city AS team_city, t.country AS team_country, t.league AS team_league,
-             t.arena_name, t.lat AS team_lat, t.lng AS team_lng, t.primary_color
-      FROM itineraries i JOIN teams t ON t.id = i.team_id
-      WHERE i.id = ${row.id}
-    `;
-
-    res.status(201).json({ itinerary });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  const [team] = await sql`SELECT id FROM teams WHERE id = ${team_id}`;
+  if (!team) {
+    res.status(404).json({ error: 'Team not found' });
+    return;
   }
+
+  const [row] = await sql`
+    INSERT INTO itineraries (user_id, team_id, title, visit_date, notes)
+    VALUES (${req.userId}, ${team_id}, ${title}, ${visit_date}, ${notes ?? null})
+    RETURNING id
+  `;
+
+  const [itinerary] = await sql`
+    SELECT i.*, t.name AS team_name, t.short_name AS team_short_name,
+           t.city AS team_city, t.country AS team_country, t.league AS team_league,
+           t.arena_name, t.lat AS team_lat, t.lng AS team_lng, t.primary_color
+    FROM itineraries i JOIN teams t ON t.id = i.team_id
+    WHERE i.id = ${row.id}
+  `;
+
+  res.status(201).json({ itinerary });
 });
 
 // GET /api/itineraries/:id  (with stops)
@@ -146,23 +143,19 @@ router.post('/:id/stops', async (req: AuthRequest, res: Response): Promise<void>
     return;
   }
 
-  try {
-    const [row] = await sql`
-      INSERT INTO itinerary_stops
-        (itinerary_id, place_id, name, address, lat, lng, category, day, order_index, notes, photo_reference)
-      VALUES (
-        ${req.params.id}, ${place_id ?? null}, ${name}, ${address ?? null},
-        ${lat}, ${lng},
-        ${category ?? 'attraction'}, ${day ?? 1}, ${order_index ?? 0},
-        ${notes ?? null}, ${photo_reference ?? null}
-      )
-      RETURNING id
-    `;
-    const [stop] = await sql`SELECT * FROM itinerary_stops WHERE id = ${row.id}`;
-    res.status(201).json({ stop });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+  const [row] = await sql`
+    INSERT INTO itinerary_stops
+      (itinerary_id, place_id, name, address, lat, lng, category, day, order_index, notes, photo_reference)
+    VALUES (
+      ${req.params.id}, ${place_id ?? null}, ${name}, ${address ?? null},
+      ${lat}, ${lng},
+      ${category ?? 'attraction'}, ${day ?? 1}, ${order_index ?? 0},
+      ${notes ?? null}, ${photo_reference ?? null}
+    )
+    RETURNING id
+  `;
+  const [stop] = await sql`SELECT * FROM itinerary_stops WHERE id = ${row.id}`;
+  res.status(201).json({ stop });
 });
 
 // PUT /api/itineraries/:id/stops/:sid
