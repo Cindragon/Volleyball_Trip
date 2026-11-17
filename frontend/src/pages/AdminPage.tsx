@@ -31,7 +31,8 @@ import PeopleIcon from '@mui/icons-material/People';
 
 import { adminApi, teamsApi } from '../services/api';
 import type { Team, AdminPlace, User } from '../types';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
+import { getErrorMessage } from '../utils/errors';
 
 type TabKey = 'teams' | 'places' | 'users';
 
@@ -71,8 +72,8 @@ export default function AdminPage() {
       await adminApi.deleteTeam(id);
       await reloadTeams();
       notify('Team deleted');
-    } catch (e: any) {
-      notify(e.response?.data?.error ?? 'Delete failed', 'error');
+    } catch (e) {
+      notify(getErrorMessage(e, 'Delete failed'), 'error');
     }
   };
 
@@ -82,8 +83,8 @@ export default function AdminPage() {
       await adminApi.deletePlace(id);
       await reloadPlaces();
       notify('Place deleted');
-    } catch (e: any) {
-      notify(e.response?.data?.error ?? 'Delete failed', 'error');
+    } catch (e) {
+      notify(getErrorMessage(e, 'Delete failed'), 'error');
     }
   };
 
@@ -92,8 +93,8 @@ export default function AdminPage() {
       await adminApi.setUserActive(u.id, !u.is_active);
       await reloadUsers();
       notify(u.is_active ? 'Account deactivated' : 'Account reactivated');
-    } catch (e: any) {
-      notify(e.response?.data?.error ?? 'Update failed', 'error');
+    } catch (e) {
+      notify(getErrorMessage(e, 'Update failed'), 'error');
     }
   };
 
@@ -102,8 +103,8 @@ export default function AdminPage() {
       await adminApi.setUserAdmin(u.id, !u.is_admin);
       await reloadUsers();
       notify(`Admin ${u.is_admin ? 'revoked' : 'granted'}`);
-    } catch (e: any) {
-      notify(e.response?.data?.error ?? 'Update failed', 'error');
+    } catch (e) {
+      notify(getErrorMessage(e, 'Update failed'), 'error');
     }
   };
 
@@ -388,7 +389,7 @@ function NewTeamDialog({
     name: '', short_name: '', league: '', country: '', city: '',
     arena_name: '', lat: '', lng: '', primary_color: '#2376b7', website_url: '',
   });
-  const upd = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const upd = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setF(prev => ({ ...prev, [k]: e.target.value }));
 
   const submit = async () => {
@@ -397,11 +398,11 @@ function NewTeamDialog({
         ...f,
         lat: Number(f.lat),
         lng: Number(f.lng),
-      } as any);
+      });
       setF({ name: '', short_name: '', league: '', country: '', city: '', arena_name: '', lat: '', lng: '', primary_color: '#2376b7', website_url: '' });
       onCreated();
-    } catch (e: any) {
-      onError(e.response?.data?.error ?? 'Create failed');
+    } catch (e) {
+      onError(getErrorMessage(e, 'Create failed'));
     }
   };
 
@@ -458,7 +459,7 @@ function NewPlaceDialog({
   }>({
     name: '', city: '', address: '', lat: '', lng: '', category: 'tourist_attraction', rating: '4.5',
   });
-  const upd = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const upd = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setF(prev => ({ ...prev, [k]: e.target.value }));
 
   const submit = async () => {
@@ -474,8 +475,8 @@ function NewPlaceDialog({
       });
       setF({ name: '', city: '', address: '', lat: '', lng: '', category: 'tourist_attraction', rating: '4.5' });
       onCreated();
-    } catch (e: any) {
-      onError(e.response?.data?.error ?? 'Create failed');
+    } catch (e) {
+      onError(getErrorMessage(e, 'Create failed'));
     }
   };
 
@@ -510,7 +511,7 @@ function NewPlaceDialog({
             <TextField
               label="Category"
               value={f.category}
-              onChange={upd('category') as any}
+              onChange={upd('category')}
               select
               fullWidth
               size="small"

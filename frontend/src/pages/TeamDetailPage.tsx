@@ -21,7 +21,7 @@ import { APIProvider, Map, AdvancedMarker, Pin } from '@vis.gl/react-google-maps
 import { teamsApi, placesApi } from '../services/api';
 import type { Team, NearbyPlace, PlaceType } from '../types';
 import { COUNTRY_FLAGS } from '../types';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import CreateItineraryDialog from '../components/Teams/CreateItineraryDialog';
 
 const PLACE_FILTERS: { key: PlaceType | 'all'; label: string; icon: string }[] = [
@@ -40,10 +40,11 @@ export default function TeamDetailPage() {
   const { user } = useAuth();
 
   const [team, setTeam] = useState<Team | null>(null);
-  const [places, setPlaces] = useState<NearbyPlace[]>([]);
+  // Results are tagged with the request key so loading is derived (no setState
+  // in the effect body) and stale responses can't overwrite newer ones.
+  const [placesResult, setPlacesResult] = useState<{ key: string; places: NearbyPlace[] } | null>(null);
   const [placeType, setPlaceType] = useState<PlaceType | 'all'>('tourist_attraction');
   const [loadingTeam, setLoadingTeam] = useState(true);
-  const [loadingPlaces, setLoadingPlaces] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<NearbyPlace | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -53,17 +54,22 @@ export default function TeamDetailPage() {
       .then(({ data }) => setTeam(data.team))
       .catch(() => navigate('/teams'))
       .finally(() => setLoadingTeam(false));
-  }, [id]);
+  }, [id, navigate]);
+
+  const placesKey = team ? `${team.id}:${placeType}` : null;
 
   useEffect(() => {
-    if (!team) return;
-    setLoadingPlaces(true);
+    if (!team || !placesKey) return;
+    let cancelled = false;
     const type = placeType === 'all' ? undefined : placeType;
     placesApi.nearby({ lat: team.lat, lng: team.lng, type, radius: 3000, city: team.city })
-      .then(({ data }) => setPlaces(data.results))
-      .catch(() => setPlaces([]))
-      .finally(() => setLoadingPlaces(false));
-  }, [team, placeType]);
+      .then(({ data }) => { if (!cancelled) setPlacesResult({ key: placesKey, places: data.results }); })
+      .catch(() => { if (!cancelled) setPlacesResult({ key: placesKey, places: [] }); });
+    return () => { cancelled = true; };
+  }, [team, placeType, placesKey]);
+
+  const places = placesResult?.places ?? [];
+  const loadingPlaces = placesKey !== null && placesResult?.key !== placesKey;
 
   if (loadingTeam) {
     return (

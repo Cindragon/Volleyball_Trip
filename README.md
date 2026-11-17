@@ -23,6 +23,7 @@ VolleyTrip 是一款地圖功能導向的全端應用，專為排球球迷設計
 | 50 支球隊 | 涵蓋四國頂級聯賽完整球隊資料 |
 | 管理後台 | 管理員可新增/刪除球隊、策展景點、管理會員 |
 | 明亮 UI | FixIt 風格極簡明亮介面（花青藍 + 蓮瓣紅） |
+| 安全與穩定 | 統一錯誤處理、輸入驗證、登入與照片代理速率限制、token 失效自動登出 |
 
 ---
 
@@ -30,15 +31,15 @@ VolleyTrip 是一款地圖功能導向的全端應用，專為排球球迷設計
 
 ### 前端
 - **框架**：React 19 + TypeScript（Vite）
-- **UI**：Material UI v5 + TailwindCSS v4
-- **路由**：React Router v6
+- **UI**：Material UI v9 + TailwindCSS v4
+- **路由**：React Router v7
 - **HTTP**：Axios
 - **地圖**：`@vis.gl/react-google-maps`（Google 官方 React wrapper）
 
 ### 後端
 - **框架**：Node.js + Express + TypeScript（tsx watch）
 - **資料庫**：Neon PostgreSQL（Serverless）— 使用 `@neondatabase/serverless` 驅動，透過 `DATABASE_URL` 連線
-- **認證**：JWT（jsonwebtoken）+ bcryptjs
+- **認證**：JWT（jsonwebtoken）+ bcryptjs，登入 / 註冊有速率限制（express-rate-limit）
 - **Google Maps**：Places API 伺服器端代理（避免 API Key 外洩）
 
 ---
@@ -60,6 +61,7 @@ VolleyTrip 是一款地圖功能導向的全端應用，專為排球球迷設計
 ```
 volleyball-trip/
 ├── start-all.sh                # 一鍵啟動前後端腳本
+├── .github/workflows/ci.yml    # CI：後端型別檢查 + 測試、前端 lint + build
 ├── backend/                    # Node.js + Express API
 │   ├── src/
 │   │   ├── db/
@@ -68,14 +70,20 @@ volleyball-trip/
 │   │   │   ├── seed.ts         # 球隊種子資料（50 支）+ 預設 admin
 │   │   │   └── curatedPlaces.ts# 手工策展景點資料（25+ 城市）
 │   │   ├── middleware/
-│   │   │   └── auth.ts         # JWT 驗證 + requireAdmin middleware
+│   │   │   ├── auth.ts         # JWT 驗證 + requireAdmin middleware
+│   │   │   ├── asyncRouter.ts  # 自動包裝 async handler、驗證 :id 參數
+│   │   │   ├── errorHandler.ts # 全域錯誤處理（不外洩內部錯誤）
+│   │   │   └── rateLimit.ts    # 登入 / 照片代理速率限制
 │   │   ├── routes/
 │   │   │   ├── auth.ts         # 註冊 / 登入 / /me
 │   │   │   ├── teams.ts        # 球隊查詢 API
 │   │   │   ├── itineraries.ts  # 行程 CRUD + 停靠點 CRUD
 │   │   │   ├── places.ts       # Google Places API 代理 + 備援資料
 │   │   │   └── admin.ts        # 管理員專用 API（球隊/景點/會員）
-│   │   └── index.ts            # Express 主程式
+│   │   ├── app.ts              # Express app（路由、CORS、錯誤處理）
+│   │   └── index.ts            # 本機啟動入口（初始化 schema 後 listen）
+│   ├── api/index.ts            # Vercel serverless 入口
+│   ├── test/                   # API 測試（vitest + supertest，資料庫為 mock）
 │   ├── .env.example
 │   └── package.json
 │
@@ -84,7 +92,8 @@ volleyball-trip/
     │   ├── components/
     │   │   └── Layout/         # Navbar、Layout wrapper
     │   ├── context/
-    │   │   └── AuthContext.tsx  # 全域登入狀態
+    │   │   ├── AuthContext.tsx # 全域登入狀態（AuthProvider）
+    │   │   └── useAuth.ts      # useAuth hook
     │   ├── pages/
     │   │   ├── HomePage.tsx
     │   │   ├── TeamsPage.tsx
@@ -98,6 +107,8 @@ volleyball-trip/
     │   │   └── api.ts          # Axios instance + 所有 API 呼叫
     │   ├── types/
     │   │   └── index.ts        # TypeScript 型別定義
+    │   ├── utils/
+    │   │   └── errors.ts       # 取出 API 錯誤訊息
     │   ├── theme.ts            # MUI 明亮主題（花青藍 #2376b7）
     │   └── App.tsx             # 路由配置 + RequireAuth / RequireAdmin
     └── package.json
@@ -108,7 +119,7 @@ volleyball-trip/
 ## 快速開始
 
 ### 環境需求
-- Node.js 18 以上
+- Node.js 20.19 以上（建議 22；Vite 8 需求）
 - [Neon](https://neon.tech) PostgreSQL 資料庫（免費方案即可）
 - Google Maps API Key（需開啟 Maps JavaScript API、Places API）
 
@@ -158,15 +169,17 @@ npm run dev     # 啟動於 http://localhost:5173
 ```env
 DATABASE_URL=postgresql://user:password@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require
 PORT=3001
-JWT_SECRET=自訂一組安全的隨機字串
+JWT_SECRET=自訂一組安全的隨機字串   # 至少 16 字元，否則後端無法啟動
 GOOGLE_MAPS_API_KEY=你的_Google_Maps_API_Key
 FRONTEND_URL=https://your-app.vercel.app
-ADMIN_EMAILS=你的email@example.com   # 逗號分隔，登入後自動升為 admin
+ADMIN_EMAILS=你的email@example.com   # 逗號分隔，用這些 email 註冊時自動設為 admin
+TRUST_PROXY=0                         # 經由 ngrok 等反向代理時設為 1（Vercel 上自動啟用）
 ```
 
 ### 前端 `frontend/.env`
 ```env
 VITE_GOOGLE_MAPS_KEY=你的_Google_Maps_API_Key
+VITE_API_BASE_URL=http://localhost:3001   # 選填，後端位址（預設 http://localhost:3001）
 ```
 
 > 請勿將 `.env` 檔案提交至 Git。`.gitignore` 已設定忽略所有 `.env` 檔案。
@@ -192,7 +205,7 @@ VITE_GOOGLE_MAPS_KEY=你的_Google_Maps_API_Key
 | 方法 | 路徑 | 說明 |
 |------|------|------|
 | POST | `/api/auth/register` | 註冊新帳號 |
-| POST | `/api/auth/login` | 登入取得 JWT |
+| POST | `/api/auth/login` | 登入取得 JWT（email 不分大小寫） |
 | GET  | `/api/auth/me` | 驗證 token 並取得使用者資訊 |
 
 ### 球隊
@@ -208,17 +221,17 @@ VITE_GOOGLE_MAPS_KEY=你的_Google_Maps_API_Key
 | GET    | `/api/itineraries` | 取得我的行程列表 |
 | POST   | `/api/itineraries` | 建立新行程 |
 | GET    | `/api/itineraries/:id` | 取得行程詳情（含停靠點） |
-| PUT    | `/api/itineraries/:id` | 更新行程 |
+| PUT    | `/api/itineraries/:id` | 更新行程（只更新有帶的欄位；`notes` 送空字串或 `null` 會清除） |
 | DELETE | `/api/itineraries/:id` | 刪除行程 |
 | POST   | `/api/itineraries/:id/stops` | 新增停靠點 |
-| PUT    | `/api/itineraries/:id/stops/:sid` | 更新停靠點 |
+| PUT    | `/api/itineraries/:id/stops/:sid` | 更新停靠點（`notes` / `address` 可清除） |
 | DELETE | `/api/itineraries/:id/stops/:sid` | 刪除停靠點 |
 
 ### 地點（Google Places 代理）
 | 方法 | 路徑 | 說明 |
 |------|------|------|
 | GET | `/api/places/nearby` | 搜尋球場周邊地點（Google + 策展備援） |
-| GET | `/api/places/photo` | 取得地點照片代理 |
+| GET | `/api/places/photo` | 取得地點照片代理（`ref` 必填、`maxwidth` 1–1600；每 IP 每分鐘 60 次） |
 
 ### 管理員（需 is_admin，需登入）
 | 方法 | 路徑 | 說明 |
@@ -231,6 +244,37 @@ VITE_GOOGLE_MAPS_KEY=你的_Google_Maps_API_Key
 | GET    | `/api/admin/users` | 取得所有會員 |
 | PATCH  | `/api/admin/users/:id/status` | 停用 / 啟用帳號 |
 | PATCH  | `/api/admin/users/:id/admin` | 設定 / 移除管理員權限 |
+
+### 輸入驗證規則
+| 欄位 | 規則 |
+|------|------|
+| `:id` / `:sid` | 正整數 |
+| `email` | 會先 trim 並轉小寫；email 與 username 重複檢查不分大小寫 |
+| `password` | 至少 6 字元 |
+| `visit_date` | 合法的 `YYYY-MM-DD`（`2026-02-31` 這類日期會被拒絕） |
+| `title` / 停靠點 `name` | 不可為空白 |
+| `team_id` | 正整數 |
+| 停靠點 `day` | `1` 或 `2` |
+| 停靠點 `order_index` | 非負整數 |
+| 停靠點 `lat` / `lng` | 數字，範圍 ±90 / ±180 |
+
+### 錯誤回應格式
+
+所有錯誤都回傳 `{ "error": "訊息" }`，不會外洩資料庫等內部錯誤細節。
+
+| 狀態碼 | 情境 |
+|--------|------|
+| 400 | 輸入驗證失敗、id 格式錯誤、JSON 格式錯誤 |
+| 401 | 未登入、token 無效或過期（前端會自動登出並導回登入頁） |
+| 403 | 帳號已停用、非管理員、不允許的 CORS 來源 |
+| 404 | 資源或路由不存在 |
+| 409 | 資料重複（如 email / username 已被使用） |
+| 422 | 註冊 / 登入欄位格式錯誤 |
+| 429 | 超過速率限制：登入 / 註冊每 IP 15 分鐘內最多 10 次失敗嘗試 |
+| 500 | 未預期的伺服器錯誤（詳細內容只寫入伺服器 log） |
+| 503 | 未設定 Google Maps API Key 時呼叫照片代理 |
+
+> 速率限制使用記憶體儲存，部署在 Vercel serverless 時每個 instance 各自計算。
 
 ---
 
@@ -281,6 +325,22 @@ npm run seed     # 執行 seed.ts，寫入 50 支球隊 + 預設 admin 帳號
 
 ---
 
+## 測試與 CI
+
+```bash
+cd backend
+npm test           # vitest + supertest，資料庫為 mock，不會連到 Neon
+npm run typecheck
+
+cd ../frontend
+npm run lint
+npm run build
+```
+
+每次 push 到 `main` 或開 PR 時，GitHub Actions（`.github/workflows/ci.yml`）會自動執行上述檢查。
+
+---
+
 ## 技術練習重點
 
 - **前後端分離架構**：React SPA + RESTful API
@@ -290,6 +350,9 @@ npm run seed     # 執行 seed.ts，寫入 50 支球隊 + 預設 admin 帳號
 - **Google Maps API**：地圖顯示、標記、InfoWindow
 - **Google Places API**：伺服器端代理 + 策展資料備援機制
 - **TypeScript**：前後端全型別覆蓋
+- **錯誤處理**：async handler 自動包裝 + 全域 error handler，Postgres 錯誤對應 4xx
+- **API 安全**：輸入驗證、速率限制（express-rate-limit）、啟動時檢查 `JWT_SECRET`
+- **自動化測試**：vitest + supertest（mock 資料庫）+ GitHub Actions CI
 - **狀態管理**：React Context（全域 Auth）
 
 ---

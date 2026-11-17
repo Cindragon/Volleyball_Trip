@@ -16,7 +16,7 @@ import MapIcon from '@mui/icons-material/Map';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
 import SettingsIcon from '@mui/icons-material/Settings';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 
 const NAV_LINKS: { label: string; to: string; auth?: boolean; admin?: boolean }[] = [
   { label: 'Teams',    to: '/teams' },

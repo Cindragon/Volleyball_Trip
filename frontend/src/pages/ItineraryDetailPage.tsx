@@ -93,18 +93,26 @@ function AddStopDialog({
   onClose: () => void; onAdded: (stop: ItineraryStop) => void;
 }) {
   const [placeType, setPlaceType] = useState('tourist_attraction');
-  const [places, setPlaces] = useState<NearbyPlace[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [placesResult, setPlacesResult] = useState<{ key: string; places: NearbyPlace[] } | null>(null);
   const [day, setDay] = useState<1 | 2>(1);
   const [adding, setAdding] = useState<string | null>(null);
 
+  const { team_lat, team_lng, team_city } = itinerary;
+  const placesKey = `${team_lat},${team_lng}:${placeType}`;
+
+  // Loading is derived from the request key (no setState in the effect body),
+  // and stale responses are ignored when the type changes mid-request.
   useEffect(() => {
     if (!open) return;
-    setLoading(true);
-    placesApi.nearby({ lat: itinerary.team_lat, lng: itinerary.team_lng, type: placeType, radius: 3000 })
-      .then(({ data }) => setPlaces(data.results))
-      .finally(() => setLoading(false));
-  }, [open, placeType]);
+    let cancelled = false;
+    placesApi.nearby({ lat: team_lat, lng: team_lng, type: placeType, radius: 3000, city: team_city })
+      .then(({ data }) => { if (!cancelled) setPlacesResult({ key: placesKey, places: data.results }); })
+      .catch(() => { if (!cancelled) setPlacesResult({ key: placesKey, places: [] }); });
+    return () => { cancelled = true; };
+  }, [open, placeType, team_lat, team_lng, team_city, placesKey]);
+
+  const places = placesResult?.places ?? [];
+  const loading = open && placesResult?.key !== placesKey;
 
   const handleAdd = async (place: NearbyPlace) => {
     setAdding(place.place_id);
@@ -293,7 +301,7 @@ export default function ItineraryDetailPage() {
       .then(({ data }) => setItinerary(data.itinerary))
       .catch(() => navigate('/itineraries'))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, navigate]);
 
   useEffect(() => { fetch(); }, [fetch]);
 
