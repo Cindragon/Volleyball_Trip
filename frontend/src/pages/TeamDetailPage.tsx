@@ -23,6 +23,7 @@ import type { Team, NearbyPlace, PlaceType } from '../types';
 import { COUNTRY_FLAGS } from '../types';
 import { useAuth } from '../context/useAuth';
 import CreateItineraryDialog from '../components/Teams/CreateItineraryDialog';
+import { MAPS_KEY, MAP_ID } from '../config/maps';
 
 const PLACE_FILTERS: { key: PlaceType | 'all'; label: string; icon: string }[] = [
   { key: 'all',                label: 'All',          icon: '🗺️' },
@@ -31,8 +32,6 @@ const PLACE_FILTERS: { key: PlaceType | 'all'; label: string; icon: string }[] =
   { key: 'lodging',            label: 'Hotels',       icon: '🏨' },
   { key: 'museum',             label: 'Museums',      icon: '🖼️' },
 ];
-
-const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
 
 export default function TeamDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -159,7 +158,7 @@ export default function TeamDetailPage() {
                   <Map
                     defaultCenter={{ lat: team.lat, lng: team.lng }}
                     defaultZoom={14}
-                    mapId="volleytrip-map"
+                    mapId={MAP_ID}
                     style={{ width: '100%', height: '100%' }}
                     disableDefaultUI={false}
                     colorScheme="LIGHT"

@@ -109,6 +109,8 @@ volleyball-trip/
     │   │   └── index.ts        # TypeScript 型別定義
     │   ├── utils/
     │   │   └── errors.ts       # 取出 API 錯誤訊息
+    │   ├── config/
+    │   │   └── maps.ts         # Google Maps Key 與 Map ID（讀取環境變數）
     │   ├── theme.ts            # MUI 明亮主題（花青藍 #2376b7）
     │   └── App.tsx             # 路由配置 + RequireAuth / RequireAdmin
     └── package.json
@@ -156,8 +158,8 @@ npm run dev     # 啟動於 http://localhost:3001
 ```bash
 cd frontend
 npm install
-# 建立 .env 並填入 Google Maps Key
-echo "VITE_GOOGLE_MAPS_KEY=你的API_KEY" > .env
+cp .env.example .env
+# 編輯 .env，填入 VITE_GOOGLE_MAPS_KEY（與選填的 VITE_GOOGLE_MAP_ID）
 npm run dev     # 啟動於 http://localhost:5173
 ```
 
@@ -179,8 +181,32 @@ TRUST_PROXY=0                         # 經由 ngrok 等反向代理時設為 1�
 ### 前端 `frontend/.env`
 ```env
 VITE_GOOGLE_MAPS_KEY=你的_Google_Maps_API_Key
+VITE_GOOGLE_MAP_ID=你的_Map_ID              # 選填，未設定時使用 DEMO_MAP_ID（僅適合本機開發）
 VITE_API_BASE_URL=http://localhost:3001   # 選填，後端位址（預設 http://localhost:3001）
 ```
+
+> Vite 只在啟動時讀取 `.env`，修改後請重新執行 `npm run dev`。
+
+### Google Maps 設定
+
+在 [Google Cloud Console](https://console.cloud.google.com/apis/dashboard) 完成以下設定，否則地圖可能顯示 `ApiProjectMapError`：
+
+1. **啟用 API**：Maps JavaScript API（前端地圖）、Places API（後端周邊搜尋）
+2. **綁定帳單帳戶**：Google Maps 必須啟用帳單（有每月免費額度）
+3. **建立 Map ID**：Google Maps Platform → Map Management → Create Map ID，類型選 **JavaScript / Vector**，填入 `VITE_GOOGLE_MAP_ID`。地圖上的 AdvancedMarker 需要有效的 Map ID
+4. **前後端各用一把金鑰並設定限制**：
+
+| 金鑰 | 應用程式限制 | API 限制 |
+|------|-------------|----------|
+| 前端 `VITE_GOOGLE_MAPS_KEY` | HTTP referrers：`http://localhost:5173/*`、`https://你的網域.vercel.app/*` | Maps JavaScript API |
+| 後端 `GOOGLE_MAPS_API_KEY` | 不可用 HTTP referrer（伺服器呼叫不帶 referrer），可選 None 或 IP 限制 | Places API |
+
+設定變更可能需要幾分鐘才會生效。
+
+**疑難排解**：打開瀏覽器主控台查看 Google Maps 的錯誤訊息。
+- 出現 `NoApiKeys` 或 `[VolleyTrip] VITE_GOOGLE_MAPS_KEY is not set`：前端沒有讀到金鑰，請確認 `frontend/.env` 存在、已填入 `VITE_GOOGLE_MAPS_KEY`，並重新啟動 `npm run dev`
+- 出現 `RefererNotAllowedMapError`：金鑰的 HTTP referrer 清單沒有包含目前網址
+- 出現 `ApiNotActivatedMapError`：專案尚未啟用 Maps JavaScript API
 
 > 請勿將 `.env` 檔案提交至 Git。`.gitignore` 已設定忽略所有 `.env` 檔案。
 
