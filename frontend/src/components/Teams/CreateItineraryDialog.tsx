@@ -11,6 +11,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import { itinerariesApi } from '../../services/api';
 import type { Team } from '../../types';
+import { getErrorMessage } from '../../utils/errors';
 
 interface Props {
   team: Team;
@@ -38,8 +39,8 @@ export default function CreateItineraryDialog({ team, open, onClose, onCreated }
         notes,
       });
       onCreated(data.itinerary.id);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to create trip.');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to create trip.'));
     } finally {
       setLoading(false);
     }

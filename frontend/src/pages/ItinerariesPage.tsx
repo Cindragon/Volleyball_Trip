@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
@@ -21,7 +21,7 @@ import PlaceIcon from '@mui/icons-material/Place';
 import { itinerariesApi } from '../services/api';
 import type { Itinerary } from '../types';
 import { COUNTRY_FLAGS } from '../types';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 
 function ItineraryCard({ itinerary, onDelete }: { itinerary: Itinerary; onDelete: () => void }) {
   const navigate = useNavigate();
@@ -120,14 +120,19 @@ export default function ItinerariesPage() {
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const loadItineraries = useCallback(
+    () => itinerariesApi.list()
+      .then(({ data }) => setItineraries(data.itineraries))
+      .finally(() => setLoading(false)),
+    []
+  );
+
   const fetchItineraries = () => {
     setLoading(true);
-    itinerariesApi.list()
-      .then(({ data }) => setItineraries(data.itineraries))
-      .finally(() => setLoading(false));
+    loadItineraries();
   };
 
-  useEffect(() => { fetchItineraries(); }, []);
+  useEffect(() => { loadItineraries(); }, [loadItineraries]);
 
   if (!user) {
     navigate('/login');

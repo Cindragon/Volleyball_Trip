@@ -7,7 +7,8 @@ import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
 import SportsVolleyballIcon from '@mui/icons-material/SportsVolleyball';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
+import { getErrorMessage } from '../utils/errors';
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -28,8 +29,8 @@ export default function RegisterPage() {
     try {
       await register(form.username, form.email, form.password);
       navigate('/teams');
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Registration failed. Please try again.');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Registration failed. Please try again.'));
     } finally {
       setLoading(false);
     }

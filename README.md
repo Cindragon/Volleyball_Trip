@@ -30,15 +30,15 @@ VolleyTrip 是一款地圖功能導向的全端應用，專為排球球迷設計
 
 ### 前端
 - **框架**：React 19 + TypeScript（Vite）
-- **UI**：Material UI v5 + TailwindCSS v4
-- **路由**：React Router v6
+- **UI**：Material UI v9 + TailwindCSS v4
+- **路由**：React Router v7
 - **HTTP**：Axios
 - **地圖**：`@vis.gl/react-google-maps`（Google 官方 React wrapper）
 
 ### 後端
 - **框架**：Node.js + Express + TypeScript（tsx watch）
 - **資料庫**：Neon PostgreSQL（Serverless）— 使用 `@neondatabase/serverless` 驅動，透過 `DATABASE_URL` 連線
-- **認證**：JWT（jsonwebtoken）+ bcryptjs
+- **認證**：JWT（jsonwebtoken）+ bcryptjs，登入 / 註冊有速率限制（express-rate-limit）
 - **Google Maps**：Places API 伺服器端代理（避免 API Key 外洩）
 
 ---
@@ -60,6 +60,7 @@ VolleyTrip 是一款地圖功能導向的全端應用，專為排球球迷設計
 ```
 volleyball-trip/
 ├── start-all.sh                # 一鍵啟動前後端腳本
+├── .github/workflows/ci.yml    # CI：後端型別檢查 + 測試、前端 lint + build
 ├── backend/                    # Node.js + Express API
 │   ├── src/
 │   │   ├── db/
@@ -68,14 +69,20 @@ volleyball-trip/
 │   │   │   ├── seed.ts         # 球隊種子資料（50 支）+ 預設 admin
 │   │   │   └── curatedPlaces.ts# 手工策展景點資料（25+ 城市）
 │   │   ├── middleware/
-│   │   │   └── auth.ts         # JWT 驗證 + requireAdmin middleware
+│   │   │   ├── auth.ts         # JWT 驗證 + requireAdmin middleware
+│   │   │   ├── asyncRouter.ts  # 自動包裝 async handler、驗證 :id 參數
+│   │   │   ├── errorHandler.ts # 全域錯誤處理（不外洩內部錯誤）
+│   │   │   └── rateLimit.ts    # 登入 / 照片代理速率限制
 │   │   ├── routes/
 │   │   │   ├── auth.ts         # 註冊 / 登入 / /me
 │   │   │   ├── teams.ts        # 球隊查詢 API
 │   │   │   ├── itineraries.ts  # 行程 CRUD + 停靠點 CRUD
 │   │   │   ├── places.ts       # Google Places API 代理 + 備援資料
 │   │   │   └── admin.ts        # 管理員專用 API（球隊/景點/會員）
-│   │   └── index.ts            # Express 主程式
+│   │   ├── app.ts              # Express app（路由、CORS、錯誤處理）
+│   │   └── index.ts            # 本機啟動入口（初始化 schema 後 listen）
+│   ├── api/index.ts            # Vercel serverless 入口
+│   ├── test/                   # API 測試（vitest + supertest，資料庫為 mock）
 │   ├── .env.example
 │   └── package.json
 │
@@ -84,7 +91,8 @@ volleyball-trip/
     │   ├── components/
     │   │   └── Layout/         # Navbar、Layout wrapper
     │   ├── context/
-    │   │   └── AuthContext.tsx  # 全域登入狀態
+    │   │   ├── AuthContext.tsx # 全域登入狀態（AuthProvider）
+    │   │   └── useAuth.ts      # useAuth hook
     │   ├── pages/
     │   │   ├── HomePage.tsx
     │   │   ├── TeamsPage.tsx
@@ -98,6 +106,8 @@ volleyball-trip/
     │   │   └── api.ts          # Axios instance + 所有 API 呼叫
     │   ├── types/
     │   │   └── index.ts        # TypeScript 型別定義
+    │   ├── utils/
+    │   │   └── errors.ts       # 取出 API 錯誤訊息
     │   ├── theme.ts            # MUI 明亮主題（花青藍 #2376b7）
     │   └── App.tsx             # 路由配置 + RequireAuth / RequireAdmin
     └── package.json
@@ -108,7 +118,7 @@ volleyball-trip/
 ## 快速開始
 
 ### 環境需求
-- Node.js 18 以上
+- Node.js 20.19 以上（建議 22；Vite 8 需求）
 - [Neon](https://neon.tech) PostgreSQL 資料庫（免費方案即可）
 - Google Maps API Key（需開啟 Maps JavaScript API、Places API）
 
@@ -158,15 +168,17 @@ npm run dev     # 啟動於 http://localhost:5173
 ```env
 DATABASE_URL=postgresql://user:password@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require
 PORT=3001
-JWT_SECRET=自訂一組安全的隨機字串
+JWT_SECRET=自訂一組安全的隨機字串   # 至少 16 字元，否則後端無法啟動
 GOOGLE_MAPS_API_KEY=你的_Google_Maps_API_Key
 FRONTEND_URL=https://your-app.vercel.app
-ADMIN_EMAILS=你的email@example.com   # 逗號分隔，登入後自動升為 admin
+ADMIN_EMAILS=你的email@example.com   # 逗號分隔，用這些 email 註冊時自動設為 admin
+TRUST_PROXY=0                         # 經由 ngrok 等反向代理時設為 1（Vercel 上自動啟用）
 ```
 
 ### 前端 `frontend/.env`
 ```env
 VITE_GOOGLE_MAPS_KEY=你的_Google_Maps_API_Key
+VITE_API_BASE_URL=http://localhost:3001   # 選填，後端位址（預設 http://localhost:3001）
 ```
 
 > 請勿將 `.env` 檔案提交至 Git。`.gitignore` 已設定忽略所有 `.env` 檔案。
@@ -278,6 +290,22 @@ users ──1:N──→ admin_places（created_by）
 npm run migrate  # 執行 schema.ts，建立所有資料表（CREATE TABLE IF NOT EXISTS）
 npm run seed     # 執行 seed.ts，寫入 50 支球隊 + 預設 admin 帳號
 ```
+
+---
+
+## 測試與 CI
+
+```bash
+cd backend
+npm test           # vitest + supertest，資料庫為 mock，不會連到 Neon
+npm run typecheck
+
+cd ../frontend
+npm run lint
+npm run build
+```
+
+每次 push 到 `main` 或開 PR 時，GitHub Actions（`.github/workflows/ci.yml`）會自動執行上述檢查。
 
 ---
 
