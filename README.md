@@ -23,6 +23,7 @@ VolleyTrip 是一款地圖功能導向的全端應用，專為排球球迷設計
 | 50 支球隊 | 涵蓋四國頂級聯賽完整球隊資料 |
 | 管理後台 | 管理員可新增/刪除球隊、策展景點、管理會員 |
 | 明亮 UI | FixIt 風格極簡明亮介面（花青藍 + 蓮瓣紅） |
+| 安全與穩定 | 統一錯誤處理、輸入驗證、登入與照片代理速率限制、token 失效自動登出 |
 
 ---
 
@@ -204,7 +205,7 @@ VITE_API_BASE_URL=http://localhost:3001   # 選填，後端位址（預設 http:
 | 方法 | 路徑 | 說明 |
 |------|------|------|
 | POST | `/api/auth/register` | 註冊新帳號 |
-| POST | `/api/auth/login` | 登入取得 JWT |
+| POST | `/api/auth/login` | 登入取得 JWT（email 不分大小寫） |
 | GET  | `/api/auth/me` | 驗證 token 並取得使用者資訊 |
 
 ### 球隊
@@ -220,17 +221,17 @@ VITE_API_BASE_URL=http://localhost:3001   # 選填，後端位址（預設 http:
 | GET    | `/api/itineraries` | 取得我的行程列表 |
 | POST   | `/api/itineraries` | 建立新行程 |
 | GET    | `/api/itineraries/:id` | 取得行程詳情（含停靠點） |
-| PUT    | `/api/itineraries/:id` | 更新行程 |
+| PUT    | `/api/itineraries/:id` | 更新行程（只更新有帶的欄位；`notes` 送空字串或 `null` 會清除） |
 | DELETE | `/api/itineraries/:id` | 刪除行程 |
 | POST   | `/api/itineraries/:id/stops` | 新增停靠點 |
-| PUT    | `/api/itineraries/:id/stops/:sid` | 更新停靠點 |
+| PUT    | `/api/itineraries/:id/stops/:sid` | 更新停靠點（`notes` / `address` 可清除） |
 | DELETE | `/api/itineraries/:id/stops/:sid` | 刪除停靠點 |
 
 ### 地點（Google Places 代理）
 | 方法 | 路徑 | 說明 |
 |------|------|------|
 | GET | `/api/places/nearby` | 搜尋球場周邊地點（Google + 策展備援） |
-| GET | `/api/places/photo` | 取得地點照片代理 |
+| GET | `/api/places/photo` | 取得地點照片代理（`ref` 必填、`maxwidth` 1–1600；每 IP 每分鐘 60 次） |
 
 ### 管理員（需 is_admin，需登入）
 | 方法 | 路徑 | 說明 |
@@ -243,6 +244,37 @@ VITE_API_BASE_URL=http://localhost:3001   # 選填，後端位址（預設 http:
 | GET    | `/api/admin/users` | 取得所有會員 |
 | PATCH  | `/api/admin/users/:id/status` | 停用 / 啟用帳號 |
 | PATCH  | `/api/admin/users/:id/admin` | 設定 / 移除管理員權限 |
+
+### 輸入驗證規則
+| 欄位 | 規則 |
+|------|------|
+| `:id` / `:sid` | 正整數 |
+| `email` | 會先 trim 並轉小寫；email 與 username 重複檢查不分大小寫 |
+| `password` | 至少 6 字元 |
+| `visit_date` | 合法的 `YYYY-MM-DD`（`2026-02-31` 這類日期會被拒絕） |
+| `title` / 停靠點 `name` | 不可為空白 |
+| `team_id` | 正整數 |
+| 停靠點 `day` | `1` 或 `2` |
+| 停靠點 `order_index` | 非負整數 |
+| 停靠點 `lat` / `lng` | 數字，範圍 ±90 / ±180 |
+
+### 錯誤回應格式
+
+所有錯誤都回傳 `{ "error": "訊息" }`，不會外洩資料庫等內部錯誤細節。
+
+| 狀態碼 | 情境 |
+|--------|------|
+| 400 | 輸入驗證失敗、id 格式錯誤、JSON 格式錯誤 |
+| 401 | 未登入、token 無效或過期（前端會自動登出並導回登入頁） |
+| 403 | 帳號已停用、非管理員、不允許的 CORS 來源 |
+| 404 | 資源或路由不存在 |
+| 409 | 資料重複（如 email / username 已被使用） |
+| 422 | 註冊 / 登入欄位格式錯誤 |
+| 429 | 超過速率限制：登入 / 註冊每 IP 15 分鐘內最多 10 次失敗嘗試 |
+| 500 | 未預期的伺服器錯誤（詳細內容只寫入伺服器 log） |
+| 503 | 未設定 Google Maps API Key 時呼叫照片代理 |
+
+> 速率限制使用記憶體儲存，部署在 Vercel serverless 時每個 instance 各自計算。
 
 ---
 
@@ -318,6 +350,9 @@ npm run build
 - **Google Maps API**：地圖顯示、標記、InfoWindow
 - **Google Places API**：伺服器端代理 + 策展資料備援機制
 - **TypeScript**：前後端全型別覆蓋
+- **錯誤處理**：async handler 自動包裝 + 全域 error handler，Postgres 錯誤對應 4xx
+- **API 安全**：輸入驗證、速率限制（express-rate-limit）、啟動時檢查 `JWT_SECRET`
+- **自動化測試**：vitest + supertest（mock 資料庫）+ GitHub Actions CI
 - **狀態管理**：React Context（全域 Auth）
 
 ---
