@@ -21,6 +21,28 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// When a logged-in request comes back 401 (expired/invalid token) or 403 for a
+// deactivated account, notify the AuthProvider so it can clear the session.
+let onSessionExpired: (() => void) | null = null;
+
+export function setSessionExpiredHandler(handler: (() => void) | null) {
+  onSessionExpired = handler;
+}
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error?.response?.status;
+    const message = error?.response?.data?.error;
+    const hadToken = Boolean(error?.config?.headers?.Authorization);
+    const isDeactivated = status === 403 && message === 'Account has been deactivated';
+    if (hadToken && (status === 401 || isDeactivated)) {
+      onSessionExpired?.();
+    }
+    return Promise.reject(error);
+  }
+);
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const authApi = {
   register: (data: { username: string; email: string; password: string }) =>

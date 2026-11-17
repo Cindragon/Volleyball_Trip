@@ -6,7 +6,7 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
-import { authApi } from '../services/api';
+import { authApi, setSessionExpiredHandler } from '../services/api';
 import type { User } from '../types';
 
 interface AuthContextValue {
@@ -53,6 +53,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     setUser(null);
   }, []);
+
+  // Clear the session when the API reports the token is no longer valid;
+  // RequireAuth then redirects to the login page.
+  useEffect(() => {
+    setSessionExpiredHandler(logout);
+    return () => setSessionExpiredHandler(null);
+  }, [logout]);
 
   return (
     <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>

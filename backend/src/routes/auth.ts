@@ -9,6 +9,11 @@ const router = asyncRouter();
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Emails are case-insensitive: trim and lowercase before storing/comparing. */
+function normalizeEmail(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
 function isWhitelistedAdmin(email: string): boolean {
   const list = (process.env.ADMIN_EMAILS ?? '')
     .split(',')
@@ -39,13 +44,14 @@ function toPublicUser(row: any): PublicUser {
 
 // POST /api/auth/register
 router.post('/register', authLimiter, async (req: Request, res: Response): Promise<void> => {
-  const { username, email, password } = req.body;
+  const { username: rawUsername, email: rawEmail, password } = req.body ?? {};
 
-  if (!username || !email || !password) {
+  if (!rawUsername || !rawEmail || !password) {
     res.status(400).json({ error: 'username, email, and password are required' });
     return;
   }
-  if (typeof email !== 'string' || !EMAIL_REGEX.test(email)) {
+  const email = normalizeEmail(rawEmail);
+  if (!email || !EMAIL_REGEX.test(email)) {
     res.status(422).json({ error: 'Invalid email format' });
     return;
   }
@@ -53,20 +59,22 @@ router.post('/register', authLimiter, async (req: Request, res: Response): Promi
     res.status(422).json({ error: 'Password must be at least 6 characters' });
     return;
   }
-  if (typeof username !== 'string' || username.trim().length < 2) {
+  const username = typeof rawUsername === 'string' ? rawUsername.trim() : '';
+  if (username.length < 2) {
     res.status(422).json({ error: 'Username must be at least 2 characters' });
     return;
   }
 
   const existing = await sql`
-    SELECT id FROM users WHERE email = ${email} OR username = ${username}
+    SELECT id FROM users
+    WHERE lower(email) = ${email} OR lower(username) = lower(${username})
   `;
   if (existing.length > 0) {
     res.status(409).json({ error: 'Email or username already taken' });
     return;
   }
 
-  const password_hash = bcrypt.hashSync(password, 10);
+  const password_hash = await bcrypt.hash(password, 10);
   const is_admin = isWhitelistedAdmin(email);
   const [row] = await sql`
     INSERT INTO users (username, email, password_hash, is_admin, is_active)
@@ -88,20 +96,25 @@ router.post('/register', authLimiter, async (req: Request, res: Response): Promi
 
 // POST /api/auth/login
 router.post('/login', authLimiter, async (req: Request, res: Response): Promise<void> => {
-  const { email, password } = req.body;
+  const { email: rawEmail, password } = req.body ?? {};
 
-  if (!email || !password) {
+  if (!rawEmail || !password) {
     res.status(400).json({ error: 'email and password are required' });
     return;
   }
-  if (typeof email !== 'string' || !EMAIL_REGEX.test(email)) {
+  const email = normalizeEmail(rawEmail);
+  if (!email || !EMAIL_REGEX.test(email)) {
     res.status(422).json({ error: 'Invalid email format' });
     return;
   }
+  if (typeof password !== 'string') {
+    res.status(422).json({ error: 'password must be a string' });
+    return;
+  }
 
-  const [user] = await sql`SELECT * FROM users WHERE email = ${email}`;
+  const [user] = await sql`SELECT * FROM users WHERE lower(email) = ${email}`;
 
-  if (!user || !bcrypt.compareSync(password, user.password_hash as string)) {
+  if (!user || !(await bcrypt.compare(password, user.password_hash as string))) {
     res.status(401).json({ error: 'Invalid email or password' });
     return;
   }
