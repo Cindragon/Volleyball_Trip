@@ -30,8 +30,7 @@ import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow } from '@vis.gl/react
 import { itinerariesApi, placesApi } from '../services/api';
 import type { Itinerary, ItineraryStop, NearbyPlace } from '../types';
 import { COUNTRY_FLAGS, CATEGORY_ICONS } from '../types';
-
-const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
+import { MAPS_KEY, MAP_ID } from '../config/maps';
 
 const PLACE_TYPES = [
   { key: 'tourist_attraction', label: 'Attractions', icon: '🏛️' },
@@ -465,7 +464,7 @@ export default function ItineraryDetailPage() {
                 <Map
                   defaultCenter={mapCenter}
                   defaultZoom={14}
-                  mapId="volleytrip-itinerary-map"
+                  mapId={MAP_ID}
                   style={{ width: '100%', height: '100%' }}
                   colorScheme="DARK"
                 >
