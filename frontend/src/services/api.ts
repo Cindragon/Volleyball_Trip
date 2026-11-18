@@ -2,26 +2,27 @@ import axios from 'axios';
 import type { Team, Itinerary, ItineraryStop, NearbyPlace, User, AdminPlace } from '../types';
 
 /**
- * Backend origin — configurable via VITE_API_BASE_URL so the frontend can point
- * at an ngrok tunnel (or any deployed host) without code changes. Trailing
- * slashes are stripped so we can safely append paths.
+ * API calls always go to this site's own /api path:
+ *   - local dev: Vite proxies /api to the backend (vite.config.ts)
+ *   - Vercel:    frontend/vercel.json rewrites /api to the backend project
+ * Same origin keeps the httpOnly session cookie first-party, so browsers that
+ * block third-party cookies still send it, and no CORS is involved.
  */
-const API_ORIGIN = (
-  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001'
-).replace(/\/+$/, '');
-
 const api = axios.create({
-  baseURL: `${API_ORIGIN}/api`,
+  baseURL: '/api',
+  // Required by the backend for cookie-authenticated writes (CSRF guard).
+  headers: { 'X-Requested-With': 'XMLHttpRequest' },
 });
 
-// Attach JWT token to every request
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+/**
+ * Public, cookie-less resources (place photos) are loaded straight from the
+ * backend when VITE_API_BASE_URL is set, so they skip the extra proxy hop and
+ * the backend rate-limits them by the visitor's real IP. Falls back to the
+ * same-origin proxy.
+ */
+const PUBLIC_ASSET_ORIGIN = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '');
 
-// When a logged-in request comes back 401 (expired/invalid token) or 403 for a
+// When a request comes back 401 (session expired/invalid) or 403 for a
 // deactivated account, notify the AuthProvider so it can clear the session.
 let onSessionExpired: (() => void) | null = null;
 
@@ -29,14 +30,17 @@ export function setSessionExpiredHandler(handler: (() => void) | null) {
   onSessionExpired = handler;
 }
 
+/** Failed credentials are a form error, not an expired session. */
+const CREDENTIAL_ENDPOINTS = ['/auth/login', '/auth/register'];
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error?.response?.status;
     const message = error?.response?.data?.error;
-    const hadToken = Boolean(error?.config?.headers?.Authorization);
+    const url: string = error?.config?.url ?? '';
     const isDeactivated = status === 403 && message === 'Account has been deactivated';
-    if (hadToken && (status === 401 || isDeactivated)) {
+    if ((status === 401 || isDeactivated) && !CREDENTIAL_ENDPOINTS.includes(url)) {
       onSessionExpired?.();
     }
     return Promise.reject(error);
@@ -46,12 +50,15 @@ api.interceptors.response.use(
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const authApi = {
   register: (data: { username: string; email: string; password: string }) =>
-    api.post<{ token: string; user: User }>('/auth/register', data),
+    api.post<{ user: User }>('/auth/register', data),
 
   login: (data: { email: string; password: string }) =>
-    api.post<{ token: string; user: User }>('/auth/login', data),
+    api.post<{ user: User }>('/auth/login', data),
 
-  me: () => api.get<{ user: User }>('/auth/me'),
+  logout: () => api.post('/auth/logout'),
+
+  /** `user` is null when there is no session. */
+  me: () => api.get<{ user: User | null }>('/auth/me'),
 };
 
 // ── Teams ─────────────────────────────────────────────────────────────────────
@@ -106,7 +113,7 @@ export const placesApi = {
     api.get<{ results: NearbyPlace[]; status: string; source?: 'google' | 'curated' }>('/places/nearby', { params }),
 
   photoUrl: (ref: string, maxwidth = 400) =>
-    `${API_ORIGIN}/api/places/photo?ref=${encodeURIComponent(ref)}&maxwidth=${maxwidth}`,
+    `${PUBLIC_ASSET_ORIGIN}/api/places/photo?ref=${encodeURIComponent(ref)}&maxwidth=${maxwidth}`,
 };
 
 // ── Admin ─────────────────────────────────────────────────────────────────────

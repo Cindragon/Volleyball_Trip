@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import sql from './database';
+import { ensureRateLimitTable } from '../middleware/postgresRateLimitStore';
 
 export async function initSchema(): Promise<void> {
   await sql`
@@ -82,6 +83,9 @@ export async function initSchema(): Promise<void> {
   `;
 
   await sql`CREATE INDEX IF NOT EXISTS idx_admin_places_city ON admin_places(city)`;
+
+  // Shared rate-limit counters (see middleware/postgresRateLimitStore.ts).
+  await ensureRateLimitTable();
 
   console.log('Database schema initialized.');
 }

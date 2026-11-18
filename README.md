@@ -18,12 +18,12 @@ VolleyTrip 是一款地圖功能導向的全端應用，專為排球球迷設計
 |------|------|
 | 地圖整合 | Google Maps 顯示球場位置與行程停靠點 |
 | 周邊搜尋 | Google Places API + 手工策展景點資料雙層備援 |
-| 帳密登入 | 本地帳號註冊 / 登入，JWT 身份驗證 |
+| 帳密登入 | 本地帳號註冊 / 登入，JWT 存在 httpOnly cookie（前端程式讀不到） |
 | 行程 CRUD | 建立、編輯、刪除行程及每日停靠點 |
 | 50 支球隊 | 涵蓋四國頂級聯賽完整球隊資料 |
 | 管理後台 | 管理員可新增/刪除球隊、策展景點、管理會員 |
 | 明亮 UI | FixIt 風格極簡明亮介面（花青藍 + 蓮瓣紅） |
-| 安全與穩定 | 統一錯誤處理、輸入驗證、登入與照片代理速率限制、token 失效自動登出；刪除 / 儲存失敗時在畫面上顯示錯誤訊息 |
+| 安全與穩定 | 統一錯誤處理、輸入驗證、CSRF 防護、跨 instance 共用的速率限制、登入失效自動登出；刪除 / 儲存失敗時在畫面上顯示錯誤訊息 |
 
 ---
 
@@ -39,7 +39,7 @@ VolleyTrip 是一款地圖功能導向的全端應用，專為排球球迷設計
 ### 後端
 - **框架**：Node.js + Express + TypeScript（tsx watch）
 - **資料庫**：Neon PostgreSQL（Serverless）— 使用 `@neondatabase/serverless` 驅動，透過 `DATABASE_URL` 連線
-- **認證**：JWT（jsonwebtoken）+ bcryptjs，登入 / 註冊有速率限制（express-rate-limit）
+- **認證**：JWT（jsonwebtoken）+ bcryptjs，JWT 放在 httpOnly cookie；登入 / 註冊有速率限制（express-rate-limit，Vercel 上計數存在 Postgres）
 - **Google Maps**：Places API 伺服器端代理（避免 API Key 外洩）
 
 ---
@@ -69,13 +69,16 @@ volleyball-trip/
 │   │   │   ├── schema.ts       # 資料表定義
 │   │   │   ├── seed.ts         # 球隊種子資料（50 支）+ 預設 admin
 │   │   │   └── curatedPlaces.ts# 手工策展景點資料（25+ 城市）
+│   │   ├── auth/
+│   │   │   └── session.ts      # session cookie 讀寫、JWT 簽發 / 驗證、CSRF 檢查
 │   │   ├── middleware/
-│   │   │   ├── auth.ts         # JWT 驗證 + requireAdmin middleware
+│   │   │   ├── auth.ts         # requireAuth / requireAdmin middleware
 │   │   │   ├── asyncRouter.ts  # 自動包裝 async handler、驗證 :id 參數
 │   │   │   ├── errorHandler.ts # 全域錯誤處理（不外洩內部錯誤）
-│   │   │   └── rateLimit.ts    # 登入 / 照片代理速率限制
+│   │   │   ├── rateLimit.ts    # 登入 / 照片代理速率限制
+│   │   │   └── postgresRateLimitStore.ts # 速率限制計數存在 Postgres（跨 instance 共用）
 │   │   ├── routes/
-│   │   │   ├── auth.ts         # 註冊 / 登入 / /me
+│   │   │   ├── auth.ts         # 註冊 / 登入 / 登出 / /me
 │   │   │   ├── teams.ts        # 球隊查詢 API
 │   │   │   ├── itineraries.ts  # 行程 CRUD + 停靠點 CRUD
 │   │   │   ├── places.ts       # Google Places API 代理 + 備援資料
@@ -83,7 +86,7 @@ volleyball-trip/
 │   │   ├── app.ts              # Express app（路由、CORS、錯誤處理）
 │   │   └── index.ts            # 本機啟動入口（初始化 schema 後 listen）
 │   ├── api/index.ts            # Vercel serverless 入口
-│   ├── test/                   # API 測試（vitest + supertest，資料庫為 mock）
+│   ├── test/                   # API 與速率限制 store 測試（vitest + supertest，資料庫為 mock）
 │   ├── .env.example
 │   └── package.json
 │
@@ -112,7 +115,9 @@ volleyball-trip/
     │   ├── config/
     │   │   └── maps.ts         # Google Maps Key 與 Map ID（讀取環境變數）
     │   ├── theme.ts            # MUI 明亮主題（花青藍 #2376b7）
-    │   └── App.tsx             # 路由配置 + RequireAuth / RequireAdmin
+    │   ├── test/setup.ts       # 前端測試設定（Testing Library）
+    │   └── App.tsx             # 路由配置（頁面 lazy 載入）+ RequireAuth / RequireAdmin
+    ├── vercel.json             # SPA fallback + 把 /api 轉發到後端（讓 cookie 維持同站）
     └── package.json
 ```
 
@@ -176,13 +181,16 @@ GOOGLE_MAPS_API_KEY=你的_Google_Maps_API_Key
 FRONTEND_URL=https://your-app.vercel.app
 ADMIN_EMAILS=你的email@example.com   # 逗號分隔，用這些 email 註冊時自動設為 admin
 TRUST_PROXY=0                         # 經由 ngrok 等反向代理時設為 1（Vercel 上自動啟用）
+RATE_LIMIT_STORE=                     # 選填：postgres | memory；未設定時 Vercel 用 postgres、本機用 memory
+SEED_ADMIN_EMAIL=admin@volleytrip.local   # 選填，npm run seed 建立的管理員 email
+SEED_ADMIN_PASSWORD=                  # 選填，未設定時隨機產生並只顯示一次（見「預設管理員帳號」）
 ```
 
 ### 前端 `frontend/.env`
 ```env
 VITE_GOOGLE_MAPS_KEY=你的_Google_Maps_API_Key
 VITE_GOOGLE_MAP_ID=你的_Map_ID              # 選填，未設定時使用 DEMO_MAP_ID（僅適合本機開發）
-VITE_API_BASE_URL=http://localhost:3001   # 選填，後端位址（預設 http://localhost:3001）
+VITE_API_BASE_URL=http://localhost:3001   # 選填，只用於景點照片網址（直接向後端載入）；API 呼叫一律走同網域 /api
 ```
 
 > Vite 只在啟動時讀取 `.env`，修改後請重新執行 `npm run dev`。
@@ -214,10 +222,17 @@ VITE_API_BASE_URL=http://localhost:3001   # 選填，後端位址（預設 http:
 
 ## 預設管理員帳號
 
-執行 `npm run seed` 後會自動建立：
+執行 `npm run seed` 時，如果資料庫裡還沒有管理員帳號，會自動建立一個。密碼**不會**寫在程式碼裡：
 
 | 欄位 | 值 |
 |------|-----|
+| Email | `SEED_ADMIN_EMAIL`，未設定時為 `admin@volleytrip.local` |
+| 密碼 | `SEED_ADMIN_PASSWORD`；未設定時隨機產生，**只在終端機顯示一次** |
+
+- 忘記密碼或要更換：在 `backend/.env` 設定 `SEED_ADMIN_PASSWORD`（至少 8 字元）後重新執行 `npm run seed`，會更新既有管理員的密碼。
+- 舊版本建立的管理員密碼是公開的 `admin123`，請用上面的方式換掉。
+
+------|-----|
 | Email | `admin@volleytrip.local` |
 | 密碼 | `admin123` |
 
@@ -230,9 +245,15 @@ VITE_API_BASE_URL=http://localhost:3001   # 選填，後端位址（預設 http:
 ### 認證
 | 方法 | 路徑 | 說明 |
 |------|------|------|
-| POST | `/api/auth/register` | 註冊新帳號 |
-| POST | `/api/auth/login` | 登入取得 JWT（email 不分大小寫） |
-| GET  | `/api/auth/me` | 驗證 token 並取得使用者資訊 |
+| POST | `/api/auth/register` | 註冊新帳號，並設定 session cookie |
+| POST | `/api/auth/login` | 登入並設定 session cookie（email 不分大小寫） |
+| POST | `/api/auth/logout` | 清除 session cookie |
+| GET  | `/api/auth/me` | 取得目前使用者；未登入時回傳 `{ "user": null }` |
+
+**Session 與 CSRF**
+- 登入 / 註冊成功後，JWT 只放在 `vt_session` cookie（`HttpOnly`、`SameSite=Lax`、`Path=/api`，正式環境加上 `Secure`），回應內容不含 token，前端 JavaScript 讀不到。
+- 用 cookie 驗證的寫入請求（POST / PUT / PATCH / DELETE）必須帶 `X-Requested-With` header，否則回傳 403；前端的 axios 已預設帶上。
+- 給 API 工具或測試使用時，仍可改用 `Authorization: Bearer <jwt>` header。
 
 ### 球隊
 | 方法 | 路徑 | 說明 |
@@ -292,15 +313,15 @@ VITE_API_BASE_URL=http://localhost:3001   # 選填，後端位址（預設 http:
 |--------|------|
 | 400 | 輸入驗證失敗、id 格式錯誤、JSON 格式錯誤 |
 | 401 | 未登入、token 無效或過期（前端會自動登出並導回登入頁） |
-| 403 | 帳號已停用、非管理員、不允許的 CORS 來源 |
+| 403 | 帳號已停用、非管理員、不允許的 CORS 來源、cookie 寫入請求缺少 `X-Requested-With` |
 | 404 | 資源或路由不存在 |
 | 409 | 資料重複（如 email / username 已被使用） |
 | 422 | 註冊 / 登入欄位格式錯誤 |
-| 429 | 超過速率限制：登入 / 註冊每 IP 15 分鐘內最多 10 次失敗嘗試 |
+| 429 | 超過速率限制：登入 / 註冊每個「IP + email」15 分鐘內最多 10 次失敗嘗試；照片代理每 IP 每分鐘 60 次 |
 | 500 | 未預期的伺服器錯誤（詳細內容只寫入伺服器 log） |
 | 503 | 未設定 Google Maps API Key 時呼叫照片代理 |
 
-> 速率限制使用記憶體儲存，部署在 Vercel serverless 時每個 instance 各自計算。
+> 在 Vercel 上，速率限制的計數存在 Postgres 的 `rate_limits` 資料表，所有 serverless instance 共用（第一次使用時自動建表）；本機與測試使用記憶體。資料庫暫時連不上時會放行請求，不會把所有人擋在登入頁外。
 
 ---
 
@@ -360,6 +381,7 @@ npm run typecheck
 
 cd ../frontend
 npm run lint
+npm test           # vitest + Testing Library（jsdom）：API client、登入狀態、受保護路由
 npm run build
 ```
 
@@ -374,6 +396,27 @@ npm run build
 
 ---
 
+## 部署（Vercel）
+
+前端與後端是兩個 Vercel 專案：
+
+| 專案 | 網址 | Root Directory |
+|------|------|----------------|
+| 前端 | `https://volleyball-trip.vercel.app` | `frontend` |
+| 後端 | `https://volleyball-trip-7gmb.vercel.app` | `backend` |
+
+`*.vercel.app` 的各個子網域對瀏覽器來說是**不同網站**，後端直接設定的 cookie 會被當成第三方 cookie（Safari 等瀏覽器會擋）。因此 `frontend/vercel.json` 把 `/api/*` 轉發到後端，讓瀏覽器只跟前端網域溝通，session cookie 維持第一方：
+
+```json
+{ "source": "/api/:path*", "destination": "https://volleyball-trip-7gmb.vercel.app/api/:path*" }
+```
+
+- 後端網址改變時，記得一起修改 `frontend/vercel.json`。
+- 前端專案的 `VITE_API_BASE_URL` 請設為後端網址：只用於景點照片，讓照片直接向後端載入，後端可依訪客的真實 IP 做速率限制。
+- 部署後請實際測試：登入 → 重新整理仍保持登入 → 登出。
+
+---
+
 ## 技術練習重點
 
 - **前後端分離架構**：React SPA + RESTful API
@@ -385,7 +428,9 @@ npm run build
 - **TypeScript**：前後端全型別覆蓋
 - **錯誤處理**：async handler 自動包裝 + 全域 error handler，Postgres 錯誤對應 4xx
 - **API 安全**：輸入驗證、速率限制（express-rate-limit）、啟動時檢查 `JWT_SECRET`
-- **自動化測試**：vitest + supertest（mock 資料庫）+ GitHub Actions CI
+- **自動化測試**：後端 vitest + supertest（mock 資料庫）、前端 vitest + Testing Library，GitHub Actions CI
+- **Session 安全**：httpOnly cookie + SameSite + CSRF header 檢查，前端與 API 同網域（Vite proxy / Vercel rewrite）
+- **效能**：路由層級 code splitting（`React.lazy`），主程式 bundle 從約 700 kB 降到約 270 kB
 - **狀態管理**：React Context（全域 Auth）
 
 ---

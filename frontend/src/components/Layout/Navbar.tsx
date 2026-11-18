@@ -32,7 +32,7 @@ export default function Navbar() {
 
   const handleLogout = () => {
     setAnchorEl(null);
-    logout();
+    void logout();
     navigate('/');
   };
 

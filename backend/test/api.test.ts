@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 
 // Env must be set before app.ts runs; dotenv never overrides existing vars,
 // so a local backend/.env cannot leak real keys into the tests.
@@ -123,6 +124,82 @@ describe('auth', () => {
   });
 });
 
+describe('cookie sessions', () => {
+  const sessionCookie = `vt_session=${token}`;
+  const getSetCookie = (res: request.Response) => ([] as string[]).concat(res.headers['set-cookie'] ?? []);
+
+  it('register sets an httpOnly session cookie and keeps the token out of the body', async () => {
+    sqlMock.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 8 }]);
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ username: 'cookie', email: 'cookie@example.com', password: 'secret123' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.token).toBeUndefined();
+    const cookie = getSetCookie(res).find(c => c.startsWith('vt_session='));
+    expect(cookie).toBeDefined();
+    expect(cookie).toMatch(/HttpOnly/i);
+    expect(cookie).toMatch(/SameSite=Lax/i);
+    expect(cookie).toMatch(/Path=\/api/);
+  });
+
+  it('login sets the cookie on success', async () => {
+    const password_hash = await bcrypt.hash('right-password', 4);
+    sqlMock.mockResolvedValueOnce([{ ...ACTIVE_USER, email: 'tester@example.com', password_hash }]);
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'tester@example.com', password: 'right-password' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.token).toBeUndefined();
+    expect(getSetCookie(res).some(c => c.startsWith('vt_session='))).toBe(true);
+  });
+
+  it('authenticates reads with the cookie alone', async () => {
+    sqlMock.mockResolvedValueOnce([ACTIVE_USER]).mockResolvedValueOnce([]);
+    const res = await request(app).get('/api/itineraries').set('Cookie', sessionCookie);
+    expect(res.status).toBe(200);
+  });
+
+  it('rejects cookie-authenticated writes without the CSRF header', async () => {
+    const res = await request(app)
+      .post('/api/itineraries')
+      .set('Cookie', sessionCookie)
+      .send({ team_id: 1, title: 'Trip', visit_date: '2026-12-01' });
+    expect(res.status).toBe(403);
+    expect(sqlMock).not.toHaveBeenCalled();
+  });
+
+  it('accepts cookie-authenticated writes that carry the CSRF header', async () => {
+    sqlMock.mockResolvedValueOnce([ACTIVE_USER]);
+    const res = await request(app)
+      .post('/api/itineraries')
+      .set('Cookie', sessionCookie)
+      .set('X-Requested-With', 'XMLHttpRequest')
+      .send({ team_id: 1, title: 'Trip', visit_date: 'not-a-date' });
+    // Past auth + CSRF, stopped by input validation.
+    expect(res.status).toBe(400);
+  });
+
+  it('/me returns { user: null } for anonymous visitors', async () => {
+    const res = await request(app).get('/api/auth/me');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ user: null });
+  });
+
+  it('/me returns 401 and clears a bad cookie', async () => {
+    const res = await request(app).get('/api/auth/me').set('Cookie', 'vt_session=garbage');
+    expect(res.status).toBe(401);
+    expect(getSetCookie(res).some(c => /^vt_session=;/.test(c))).toBe(true);
+  });
+
+  it('logout clears the cookie', async () => {
+    const res = await request(app).post('/api/auth/logout');
+    expect(res.status).toBe(204);
+    expect(getSetCookie(res).some(c => /^vt_session=;/.test(c) && /Expires=Thu, 01 Jan 1970/.test(c))).toBe(true);
+  });
+});
+
 describe('itineraries', () => {
   it('requires a token', async () => {
     expect((await request(app).get('/api/itineraries')).status).toBe(401);
@@ -194,5 +271,11 @@ describe('rate limiting', () => {
         .send({ email: 'nobody@example.com', password: 'wrong' })).status;
     }
     expect(status).toBe(429);
+
+    // The limit is per IP + email: another account from the same IP still gets through.
+    const other = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'someone-else@example.com', password: 'wrong' });
+    expect(other.status).toBe(401);
   });
 });

@@ -8,50 +8,52 @@ import { authApi, setSessionExpiredHandler } from '../services/api';
 import type { User } from '../types';
 import { AuthContext } from './useAuth';
 
+/**
+ * The session lives in an httpOnly cookie that scripts cannot read, so the
+ * app learns whether it is logged in by asking the API (/auth/me).
+ */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
-  // Only wait for /auth/me when there is a stored token to verify.
-  const [loading, setLoading] = useState(() => Boolean(localStorage.getItem('token')));
+  const [loading, setLoading] = useState(true);
 
-  // Restore session on mount
+  // Restore session on mount.
   useEffect(() => {
-    if (!token) return;
+    // Tokens used to be stored here; remove any left over from older versions.
+    try { localStorage.removeItem('token'); } catch { /* storage unavailable */ }
+
+    let cancelled = false;
     authApi.me()
-      .then(({ data }) => setUser(data.user))
-      .catch(() => { localStorage.removeItem('token'); setToken(null); })
-      .finally(() => setLoading(false));
-  }, [token]);
+      .then(({ data }) => { if (!cancelled) setUser(data.user); })
+      .catch(() => { if (!cancelled) setUser(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     const { data } = await authApi.login({ email, password });
-    localStorage.setItem('token', data.token);
-    setToken(data.token);
     setUser(data.user);
   }, []);
 
   const register = useCallback(async (username: string, email: string, password: string) => {
     const { data } = await authApi.register({ username, email, password });
-    localStorage.setItem('token', data.token);
-    setToken(data.token);
     setUser(data.user);
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('token');
-    setToken(null);
+  const logout = useCallback(async () => {
     setUser(null);
+    // Clearing the cookie is best-effort: the user is logged out locally either way.
+    await authApi.logout().catch(() => {});
   }, []);
 
-  // Clear the session when the API reports the token is no longer valid;
-  // RequireAuth then redirects to the login page.
+  // The API reported the session is no longer valid: forget the user locally
+  // (the server already rejected the cookie). RequireAuth then redirects.
   useEffect(() => {
-    setSessionExpiredHandler(logout);
+    setSessionExpiredHandler(() => setUser(null));
     return () => setSessionExpiredHandler(null);
-  }, [logout]);
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,8 +1,17 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { type Store } from 'express-rate-limit';
+import { PostgresStore } from './postgresRateLimitStore';
 
-// Note: the default store is in-memory, so on serverless (Vercel) each
-// instance keeps its own counters. Swap in a shared store (e.g. Redis) if
-// stricter guarantees are needed.
+/**
+ * Where counters are kept:
+ *   - `postgres`: shared table in the app database, so the limit holds across
+ *     all serverless instances. Default on Vercel.
+ *   - `memory`:   per-process (express-rate-limit default). Default locally
+ *     and in tests.
+ * Override with RATE_LIMIT_STORE=postgres|memory.
+ */
+const storeKind = process.env.RATE_LIMIT_STORE ?? (process.env.VERCEL ? 'postgres' : 'memory');
+const makeStore = (prefix: string): Store | undefined =>
+  storeKind === 'postgres' ? new PostgresStore(prefix) : undefined;
 
 /** Login / register: counts failed attempts only, to slow down password guessing. */
 export const authLimiter = rateLimit({
@@ -11,6 +20,17 @@ export const authLimiter = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   skipSuccessfulRequests: true,
+  // Key on IP *and* email: guesses against one account are still capped, and
+  // if many users ever reach us through one shared IP (e.g. a proxy), one
+  // person's typos cannot lock everyone else out.
+  keyGenerator: (req) => {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    return `${req.ip}|${email}`;
+  },
+  store: makeStore('auth'),
+  // If the database is briefly unreachable, let the request through rather
+  // than locking everyone out of login.
+  passOnStoreError: true,
   message: { error: 'Too many attempts, please try again later' },
 });
 
@@ -20,5 +40,7 @@ export const photoLimiter = rateLimit({
   limit: 60,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
+  store: makeStore('photo'),
+  passOnStoreError: true,
   message: { error: 'Too many photo requests, please slow down' },
 });

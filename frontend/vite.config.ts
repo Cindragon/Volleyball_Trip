@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -19,5 +20,11 @@ export default defineConfig({
      * to access the dev server. Without this, Vite blocks unknown Host headers.
      */
     allowedHosts: ['.ngrok-free.app', '.ngrok-free.dev', '.ngrok.app'],
+  },
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    // Tests must not depend on a developer's local .env values.
+    env: { VITE_API_BASE_URL: 'https://api.example.test', VITE_GOOGLE_MAPS_KEY: 'test-key' },
   },
 });

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import { readSessionToken, verifySession, failsCsrfCheck } from '../auth/session';
 import sql from '../db/database';
 
 export interface AuthRequest extends Request {
@@ -9,21 +9,18 @@ export interface AuthRequest extends Request {
 }
 
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction): void {
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Missing or invalid Authorization header' });
+  const session = readSessionToken(req);
+  if (!session) {
+    res.status(401).json({ error: 'Not authenticated' });
     return;
   }
-
-  const token = authHeader.slice(7);
-  let payload: { userId: number; username: string };
-  try {
-    payload = jwt.verify(token, process.env.JWT_SECRET as string) as {
-      userId: number;
-      username: string;
-    };
-  } catch {
+  const payload = verifySession(session.token);
+  if (!payload) {
     res.status(401).json({ error: 'Invalid or expired token' });
+    return;
+  }
+  if (failsCsrfCheck(req, session.viaCookie)) {
+    res.status(403).json({ error: 'Missing X-Requested-With header' });
     return;
   }
 

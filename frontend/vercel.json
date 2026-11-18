@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/api/:path*", "destination": "https://volleyball-trip-7gmb.vercel.app/api/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
