@@ -128,7 +128,7 @@ volleyball-trip/
 ## 快速開始
 
 ### 環境需求
-- Node.js 20.19 以上（建議 22；Vite 8 需求）
+- Node.js **22.12 以上的 22.x**（版本寫在根目錄 `.nvmrc`，用 nvm / fnm 執行 `nvm use` 即可切換；`package.json` 的 `engines` 也會在版本不符時警告）
 - [Neon](https://neon.tech) PostgreSQL 資料庫（免費方案即可）
 - Google Maps API Key（需開啟 Maps JavaScript API、Places API）
 
@@ -378,7 +378,7 @@ npm run seed     # 執行 seed.ts，寫入 50 支球隊 + 預設 admin 帳號
 
 ```bash
 cd backend
-npm test           # vitest + supertest，資料庫為 mock，不會連到 Neon（vitest 5 需要 Node 22.12+）
+npm test           # vitest + supertest，資料庫為 mock，不會連到 Neon
 npm run typecheck
 
 cd ../frontend
@@ -387,7 +387,7 @@ npm test           # vitest + Testing Library（jsdom）：API client、登入�
 npm run build
 ```
 
-每次 push 到 `main` 或開 PR 時，GitHub Actions（`.github/workflows/ci.yml`）會自動執行上述檢查。
+每次 push 到 `main` 或開 PR 時，GitHub Actions（`.github/workflows/ci.yml`）會自動執行上述檢查，Node 版本同樣讀取 `.nvmrc`。
 
 ### 相依套件安全性
 
