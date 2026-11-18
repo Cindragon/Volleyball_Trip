@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
@@ -29,7 +29,9 @@ import GroupsIcon from '@mui/icons-material/Groups';
 import PlaceIcon from '@mui/icons-material/Place';
 import PeopleIcon from '@mui/icons-material/People';
 
+import TablePagination from '@mui/material/TablePagination';
 import { adminApi, teamsApi } from '../services/api';
+import { usePagedList } from '../hooks/usePagedList';
 import type { Team, AdminPlace, User } from '../types';
 import { useAuth } from '../context/useAuth';
 import { getErrorMessage } from '../utils/errors';
@@ -48,8 +50,15 @@ export default function AdminPage() {
   const [tab, setTab] = useState<TabKey>('teams');
 
   const [teams, setTeams] = useState<Team[]>([]);
-  const [places, setPlaces] = useState<AdminPlace[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  // Places and members can grow without bound, so they are paged on the server.
+  const places = usePagedList<AdminPlace>(useCallback(
+    (limit, offset) => adminApi.listPlaces({ limit, offset }).then(({ data }) => ({ items: data.places, total: data.total })),
+    [],
+  ));
+  const users = usePagedList<User>(useCallback(
+    (limit, offset) => adminApi.listUsers({ limit, offset }).then(({ data }) => ({ items: data.users, total: data.total })),
+    [],
+  ));
 
   const [teamDlg, setTeamDlg] = useState(false);
   const [placeDlg, setPlaceDlg] = useState(false);
@@ -60,10 +69,10 @@ export default function AdminPage() {
 
   // ── Load data ──────────────────────────────────────────────────────────────
   const reloadTeams  = () => teamsApi.list().then(({ data }) => setTeams(data.teams));
-  const reloadPlaces = () => adminApi.listPlaces().then(({ data }) => setPlaces(data.places));
-  const reloadUsers  = () => adminApi.listUsers().then(({ data }) => setUsers(data.users));
+  const reloadPlaces = places.reload;
+  const reloadUsers  = users.reload;
 
-  useEffect(() => { reloadTeams(); reloadPlaces(); reloadUsers(); }, []);
+  useEffect(() => { reloadTeams(); }, []);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleDeleteTeam = async (id: number, name: string) => {
@@ -130,8 +139,8 @@ export default function AdminPage() {
           }}
         >
           <Tab value="teams"  icon={<GroupsIcon fontSize="small" />} iconPosition="start" label={`Teams (${teams.length})`} />
-          <Tab value="places" icon={<PlaceIcon  fontSize="small" />} iconPosition="start" label={`Places (${places.length})`} />
-          <Tab value="users"  icon={<PeopleIcon fontSize="small" />} iconPosition="start" label={`Members (${users.length})`} />
+          <Tab value="places" icon={<PlaceIcon  fontSize="small" />} iconPosition="start" label={`Places (${places.total})`} />
+          <Tab value="users"  icon={<PeopleIcon fontSize="small" />} iconPosition="start" label={`Members (${users.total})`} />
         </Tabs>
       </Paper>
 
@@ -161,7 +170,8 @@ export default function AdminPage() {
               New place
             </Button>
           </Stack>
-          <PlacesTable places={places} onDelete={handleDeletePlace} />
+          <PlacesTable places={places.items} onDelete={handleDeletePlace} />
+          <Pager list={places} label="places" />
         </Box>
       )}
 
@@ -174,11 +184,12 @@ export default function AdminPage() {
             </Typography>
           </Stack>
           <UsersTable
-            users={users}
+            users={users.items}
             currentUserId={me?.id}
             onToggleActive={toggleUserActive}
             onToggleAdmin={toggleUserAdmin}
           />
+          <Pager list={users} label="members" />
         </Box>
       )}
 
@@ -260,6 +271,24 @@ function TeamsTable({ teams, onDelete }: { teams: Team[]; onDelete: (id: number,
         </TableBody>
       </Table>
     </Paper>
+  );
+}
+
+/** Page controls under a server-paged table. */
+function Pager({ list, label }: { list: ReturnType<typeof usePagedList<unknown>>; label: string }) {
+  // Everything fits on one page: no controls needed.
+  if (list.page === 0 && list.total <= list.pageSize) return null;
+  return (
+    <TablePagination
+      component="div"
+      count={list.total}
+      page={list.page}
+      rowsPerPage={list.pageSize}
+      rowsPerPageOptions={[10, 25, 50, 100]}
+      onPageChange={(_, next) => list.setPage(next)}
+      onRowsPerPageChange={(e) => list.setPageSize(Number(e.target.value))}
+      labelRowsPerPage={`${label[0].toUpperCase()}${label.slice(1)} per page:`}
+    />
   );
 }
 
