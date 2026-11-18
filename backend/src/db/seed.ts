@@ -4,30 +4,48 @@ dotenv.config();
 import { initSchema } from './schema';
 import sql from './database';
 import bcrypt from 'bcryptjs';
+import { randomBytes } from 'node:crypto';
 
 async function seed() {
   await initSchema();
 
   // ── Default admin ─────────────────────────────────────────────────────────
+  // The password never lives in the repo: it comes from SEED_ADMIN_PASSWORD,
+  // or a random one is generated and printed once.
+  const envPassword = process.env.SEED_ADMIN_PASSWORD?.trim();
+  if (envPassword !== undefined && envPassword !== '' && envPassword.length < 8) {
+    throw new Error('SEED_ADMIN_PASSWORD must be at least 8 characters');
+  }
   const DEFAULT_ADMIN = {
     username: 'admin',
-    email: 'admin@volleytrip.local',
-    password: 'admin123',
+    email: (process.env.SEED_ADMIN_EMAIL?.trim() || 'admin@volleytrip.local').toLowerCase(),
   };
 
-  const existing = await sql`SELECT id FROM users WHERE email = ${DEFAULT_ADMIN.email}`;
+  const existing = await sql`SELECT id FROM users WHERE lower(email) = ${DEFAULT_ADMIN.email}`;
 
   if (existing.length === 0) {
-    const hash = bcrypt.hashSync(DEFAULT_ADMIN.password, 10);
+    const password = envPassword || randomBytes(12).toString('base64url');
+    const hash = await bcrypt.hash(password, 10);
     await sql`
       INSERT INTO users (username, email, password_hash, is_admin, is_active)
       VALUES (${DEFAULT_ADMIN.username}, ${DEFAULT_ADMIN.email}, ${hash}, true, true)
     `;
     console.log(
-      `Seeded default admin: ${DEFAULT_ADMIN.email} / ${DEFAULT_ADMIN.password} — change this password after first login.`
+      envPassword
+        ? `Seeded admin ${DEFAULT_ADMIN.email} with the password from SEED_ADMIN_PASSWORD.`
+        : `Seeded admin ${DEFAULT_ADMIN.email} with generated password: ${password}\n` +
+          '  (shown only once — store it somewhere safe, or set SEED_ADMIN_PASSWORD and re-run seed to replace it)'
     );
+  } else if (envPassword) {
+    // Explicitly provided → rotate the existing admin's password.
+    const hash = await bcrypt.hash(envPassword, 10);
+    await sql`
+      UPDATE users SET password_hash = ${hash}, is_admin = true, is_active = true
+      WHERE lower(email) = ${DEFAULT_ADMIN.email}
+    `;
+    console.log(`Updated password for admin ${DEFAULT_ADMIN.email} from SEED_ADMIN_PASSWORD.`);
   } else {
-    await sql`UPDATE users SET is_admin = true, is_active = true WHERE email = ${DEFAULT_ADMIN.email}`;
+    await sql`UPDATE users SET is_admin = true, is_active = true WHERE lower(email) = ${DEFAULT_ADMIN.email}`;
   }
 
   // Promote any emails listed in ADMIN_EMAILS (comma-separated) to admin.

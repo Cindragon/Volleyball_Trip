@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import { signSession, setSessionCookie, clearSessionCookie, readSessionToken, verifySession } from '../auth/session';
 import sql from '../db/database';
 import { asyncRouter } from '../middleware/asyncRouter';
 import { authLimiter } from '../middleware/rateLimit';
@@ -82,14 +82,10 @@ router.post('/register', authLimiter, async (req: Request, res: Response): Promi
     RETURNING id
   `;
 
-  const token = jwt.sign(
-    { userId: row.id, username },
-    process.env.JWT_SECRET as string,
-    { expiresIn: '7d' }
-  );
+  setSessionCookie(res, signSession({ userId: row.id, username }));
 
+  // The token travels only in the httpOnly cookie, never in the body.
   res.status(201).json({
-    token,
     user: toPublicUser({ id: row.id, username, email, is_admin, is_active: true }),
   });
 });
@@ -123,45 +119,46 @@ router.post('/login', authLimiter, async (req: Request, res: Response): Promise<
     return;
   }
 
-  const token = jwt.sign(
-    { userId: user.id, username: user.username },
-    process.env.JWT_SECRET as string,
-    { expiresIn: '7d' }
-  );
+  setSessionCookie(res, signSession({ userId: user.id, username: user.username }));
+  res.json({ user: toPublicUser(user) });
+});
 
-  res.json({ token, user: toPublicUser(user) });
+// POST /api/auth/logout — clears the session cookie.
+router.post('/logout', (_req: Request, res: Response): void => {
+  clearSessionCookie(res);
+  res.status(204).end();
 });
 
 // GET /api/auth/me
+// Anonymous visitors get `{ user: null }` (200) so the app can check the
+// session on every page load without logging an error.
 router.get('/me', async (req: Request, res: Response): Promise<void> => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Not authenticated' });
+  const session = readSessionToken(req);
+  if (!session) {
+    res.json({ user: null });
     return;
   }
-  try {
-    const payload = jwt.verify(
-      authHeader.slice(7),
-      process.env.JWT_SECRET as string
-    ) as { userId: number; username: string };
-
-    const [user] = await sql`
-      SELECT id, username, email, is_admin, is_active, created_at
-      FROM users WHERE id = ${payload.userId}
-    `;
-
-    if (!user) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
-    if (!user.is_active) {
-      res.status(403).json({ error: 'Account has been deactivated' });
-      return;
-    }
-    res.json({ user: toPublicUser(user) });
-  } catch {
+  const payload = verifySession(session.token);
+  if (!payload) {
+    if (session.viaCookie) clearSessionCookie(res);
     res.status(401).json({ error: 'Invalid or expired token' });
+    return;
   }
+
+  const [user] = await sql`
+    SELECT id, username, email, is_admin, is_active, created_at
+    FROM users WHERE id = ${payload.userId}
+  `;
+
+  if (!user) {
+    res.status(401).json({ error: 'User no longer exists' });
+    return;
+  }
+  if (!user.is_active) {
+    res.status(403).json({ error: 'Account has been deactivated' });
+    return;
+  }
+  res.json({ user: toPublicUser(user) });
 });
 
 export default router;

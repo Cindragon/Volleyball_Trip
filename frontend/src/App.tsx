@@ -5,15 +5,29 @@ import theme from './theme';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/useAuth';
 import Layout from './components/Layout/Layout';
+import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
 import HomePage from './pages/HomePage';
-import TeamsPage from './pages/TeamsPage';
-import TeamDetailPage from './pages/TeamDetailPage';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import ItinerariesPage from './pages/ItinerariesPage';
-import ItineraryDetailPage from './pages/ItineraryDetailPage';
-import AdminPage from './pages/AdminPage';
-import type { ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
+
+// Route-level code splitting: the landing page ships in the main bundle, every
+// other page (and heavy deps only they use, such as Google Maps and the admin
+// tables) is downloaded the first time the route is visited.
+const TeamsPage           = lazy(() => import('./pages/TeamsPage'));
+const TeamDetailPage      = lazy(() => import('./pages/TeamDetailPage'));
+const LoginPage           = lazy(() => import('./pages/LoginPage'));
+const RegisterPage        = lazy(() => import('./pages/RegisterPage'));
+const ItinerariesPage     = lazy(() => import('./pages/ItinerariesPage'));
+const ItineraryDetailPage = lazy(() => import('./pages/ItineraryDetailPage'));
+const AdminPage           = lazy(() => import('./pages/AdminPage'));
+
+function PageFallback() {
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
+      <CircularProgress size={28} />
+    </Box>
+  );
+}
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -33,6 +47,7 @@ function RequireAdmin({ children }: { children: ReactNode }) {
 function AppRoutes() {
   return (
     <Layout>
+      <Suspense fallback={<PageFallback />}>
       <Routes>
         <Route path="/"                   element={<HomePage />} />
         <Route path="/teams"              element={<TeamsPage />} />
@@ -44,6 +59,7 @@ function AppRoutes() {
         <Route path="/admin"              element={<RequireAdmin><AdminPage /></RequireAdmin>} />
         <Route path="*"                   element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </Layout>
   );
 }
