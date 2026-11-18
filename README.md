@@ -393,6 +393,11 @@ npm run build
 
 定期在 `backend/` 與 `frontend/` 執行 `npm audit --omit=dev`，確認正式環境用到的套件沒有已知漏洞（目前兩邊都是 0）。
 
+**Dependabot**（`.github/dependabot.yml`）每週一自動檢查 `backend/`、`frontend/` 的 npm 套件，每月檢查 GitHub Actions：
+- minor / patch 更新合併成一個 PR（每個套件目錄各一個），major 版本各自獨立成 PR，方便評估破壞性變更。
+- 有安全漏洞的套件，GitHub 會另外開 security update PR（需在 repo 的 Settings → Code security 開啟 Dependabot security updates）。
+- 每個 Dependabot PR 都會跑 CI，通過再合併即可。
+
 - 後端用 `package.json` 的 `overrides` 把 Express 間接使用的 `qs` 固定在已修補版本（`^6.17.1`）。
 - `npm audit`（含開發工具）仍會列出 `picomatch` / `esbuild` 的警告：它們只在 vite、vitest、tsx 等開發工具中使用，不會部署到正式環境，且 `picomatch` 目前所有版本都被標記、尚無修補版。請不要執行 `npm audit fix --force`，它會把 vite / vitest 降版。
 
