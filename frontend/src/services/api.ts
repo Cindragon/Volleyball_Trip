@@ -119,6 +119,9 @@ export const placesApi = {
     `${PUBLIC_ASSET_ORIGIN}/api/places/photo?ref=${encodeURIComponent(ref)}&maxwidth=${maxwidth}`,
 };
 
+/** List responses that are paginated on the server. */
+type Paged<T> = T & { total: number; limit: number; offset: number };
+
 // ── Admin ─────────────────────────────────────────────────────────────────────
 export const adminApi = {
   // Teams
@@ -129,8 +132,8 @@ export const adminApi = {
     api.delete<{ deleted: number }>(`/admin/teams/${id}`),
 
   // Curated places (admin-managed)
-  listPlaces: () =>
-    api.get<{ places: AdminPlace[] }>('/admin/places'),
+  listPlaces: (params?: { limit?: number; offset?: number }) =>
+    api.get<Paged<{ places: AdminPlace[] }>>('/admin/places', { params }),
 
   createPlace: (data: Omit<AdminPlace, 'id' | 'created_by' | 'created_at'>) =>
     api.post<{ place: AdminPlace }>('/admin/places', data),
@@ -139,8 +142,8 @@ export const adminApi = {
     api.delete<{ deleted: number }>(`/admin/places/${id}`),
 
   // Users
-  listUsers: () =>
-    api.get<{ users: User[] }>('/admin/users'),
+  listUsers: (params?: { limit?: number; offset?: number }) =>
+    api.get<Paged<{ users: User[] }>>('/admin/users', { params }),
 
   setUserActive: (id: number, is_active: boolean) =>
     api.patch<{ id: number; is_active: boolean }>(`/admin/users/${id}/status`, { is_active }),
