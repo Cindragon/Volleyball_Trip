@@ -14,6 +14,8 @@ import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
+import Alert from '@mui/material/Alert';
+import CircularProgress from '@mui/material/CircularProgress';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/Delete';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -22,15 +24,28 @@ import { itinerariesApi } from '../services/api';
 import type { Itinerary } from '../types';
 import { COUNTRY_FLAGS } from '../types';
 import { useAuth } from '../context/useAuth';
+import { getErrorMessage } from '../utils/errors';
 
 function ItineraryCard({ itinerary, onDelete }: { itinerary: Itinerary; onDelete: () => void }) {
   const navigate = useNavigate();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState('');
+
+  const openConfirm = () => { setError(''); setConfirmOpen(true); };
 
   const confirmDelete = async () => {
-    await itinerariesApi.delete(itinerary.id);
-    setConfirmOpen(false);
-    onDelete();
+    setError('');
+    setDeleting(true);
+    try {
+      await itinerariesApi.delete(itinerary.id);
+      setConfirmOpen(false);
+      onDelete();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to delete trip. Please try again.'));
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const dateStr = new Date(itinerary.visit_date + 'T00:00:00').toLocaleDateString('en-US', {
@@ -84,7 +99,7 @@ function ItineraryCard({ itinerary, onDelete }: { itinerary: Itinerary; onDelete
         <IconButton
           size="small"
           aria-label={`Delete trip ${itinerary.title}`}
-          onClick={() => setConfirmOpen(true)}
+          onClick={openConfirm}
           sx={{
             position: 'absolute', top: 15, right: 16,
             opacity: 0.4, '&:hover, &:focus-visible': { opacity: 1, color: 'error.main' },
@@ -96,18 +111,21 @@ function ItineraryCard({ itinerary, onDelete }: { itinerary: Itinerary; onDelete
 
       <Dialog
         open={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        slotProps={{ paper: { sx: { background: '#1E2538', border: '1px solid rgba(240,237,232,0.1)', borderRadius: 2 } } }}
+        onClose={() => !deleting && setConfirmOpen(false)}
+        slotProps={{ paper: { sx: { background: '#ebf0ff', border: '1px solid rgba(10,9,12,0.12)', borderRadius: 2 } } }}
       >
         <DialogTitle>Delete trip?</DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Typography variant="body2" color="text.secondary">
             "{itinerary.title}" and all its stops will be permanently removed.
           </Typography>
+          {error && <Alert severity="error">{error}</Alert>}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3 }}>
-          <Button onClick={() => setConfirmOpen(false)} color="inherit">Cancel</Button>
-          <Button onClick={confirmDelete} variant="contained" color="error">Delete</Button>
+          <Button onClick={() => setConfirmOpen(false)} color="inherit" disabled={deleting}>Cancel</Button>
+          <Button onClick={confirmDelete} variant="contained" color="error" disabled={deleting}>
+            {deleting ? <CircularProgress size={18} color="inherit" /> : 'Delete'}
+          </Button>
         </DialogActions>
       </Dialog>
     </>

@@ -20,6 +20,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
+import Alert from '@mui/material/Alert';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/Delete';
@@ -28,6 +29,7 @@ import StarIcon from '@mui/icons-material/Star';
 import SearchIcon from '@mui/icons-material/Search';
 import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow } from '@vis.gl/react-google-maps';
 import { itinerariesApi, placesApi } from '../services/api';
+import { getErrorMessage } from '../utils/errors';
 import type { Itinerary, ItineraryStop, NearbyPlace } from '../types';
 import { COUNTRY_FLAGS, CATEGORY_ICONS } from '../types';
 import { MAPS_KEY, MAP_ID } from '../config/maps';
@@ -51,13 +53,17 @@ function EditItineraryDialog({
   const [visitDate, setVisitDate] = useState(itinerary.visit_date);
   const [notes, setNotes] = useState(itinerary.notes ?? '');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSave = async () => {
+    setError('');
     setLoading(true);
     try {
       const { data } = await itinerariesApi.update(itinerary.id, { title, visit_date: visitDate, notes });
       onSaved(data.itinerary);
       onClose();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to save trip. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -65,9 +71,10 @@ function EditItineraryDialog({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth
-      slotProps={{ paper: { sx: { background: '#1E2538', border: '1px solid rgba(240,237,232,0.1)', borderRadius: 2 } } }}>
+      slotProps={{ paper: { sx: { background: '#ebf0ff', border: '1px solid rgba(10,9,12,0.12)', borderRadius: 2 } } }}>
       <DialogTitle sx={{ fontFamily: 'var(--font-display)' }}>Edit Trip</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
+        {error && <Alert severity="error">{error}</Alert>}
         <TextField label="Title" value={title} onChange={e => setTitle(e.target.value)} fullWidth size="small" />
         <TextField label="Match date" type="date" value={visitDate} onChange={e => setVisitDate(e.target.value)}
           fullWidth size="small" slotProps={{ inputLabel: { shrink: true } }} />
@@ -95,6 +102,7 @@ function AddStopDialog({
   const [placesResult, setPlacesResult] = useState<{ key: string; places: NearbyPlace[] } | null>(null);
   const [day, setDay] = useState<1 | 2>(1);
   const [adding, setAdding] = useState<string | null>(null);
+  const [addError, setAddError] = useState('');
 
   const { team_lat, team_lng, team_city } = itinerary;
   const placesKey = `${team_lat},${team_lng}:${placeType}`;
@@ -134,6 +142,8 @@ function AddStopDialog({
         photo_reference: place.photo_reference ?? undefined,
       });
       onAdded(data.stop);
+    } catch (err) {
+      setAddError(getErrorMessage(err, `Failed to add "${place.name}". Please try again.`));
     } finally {
       setAdding(null);
     }
@@ -147,6 +157,7 @@ function AddStopDialog({
         <Typography variant="body2" color="text.secondary">Nearby {itinerary.arena_name}</Typography>
       </DialogTitle>
       <DialogContent sx={{ pt: 2 }}>
+        {addError && <Alert severity="error" onClose={() => setAddError('')} sx={{ mb: 2 }}>{addError}</Alert>}
         {/* Day selector */}
         <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center' }}>
           <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>Add to:</Typography>
@@ -220,17 +231,33 @@ function StopCard({
   const [editNotes, setEditNotes] = useState(false);
   const [notes, setNotes] = useState(stop.notes ?? '');
   const [deleting, setDeleting] = useState(false);
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [error, setError] = useState('');
 
   const handleDelete = async () => {
+    setError('');
     setDeleting(true);
-    await itinerariesApi.deleteStop(itineraryId, stop.id);
-    onDeleted(stop.id);
+    try {
+      await itinerariesApi.deleteStop(itineraryId, stop.id);
+      onDeleted(stop.id); // unmounts this card on success
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to remove stop. Please try again.'));
+      setDeleting(false);
+    }
   };
 
   const handleSaveNotes = async () => {
-    const { data } = await itinerariesApi.updateStop(itineraryId, stop.id, { notes });
-    onUpdated(data.stop);
-    setEditNotes(false);
+    setError('');
+    setSavingNotes(true);
+    try {
+      const { data } = await itinerariesApi.updateStop(itineraryId, stop.id, { notes });
+      onUpdated(data.stop);
+      setEditNotes(false);
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to save notes. Please try again.'));
+    } finally {
+      setSavingNotes(false);
+    }
   };
 
   return (
@@ -252,8 +279,10 @@ function StopCard({
                 <TextField value={notes} onChange={e => setNotes(e.target.value)}
                   size="small" fullWidth placeholder="Add notes…"
                   sx={{ '& input': { fontSize: '0.8rem' } }} />
-                <Button size="small" variant="contained" onClick={handleSaveNotes} sx={{ fontSize: '0.7rem', px: 1.5 }}>Save</Button>
-                <Button size="small" onClick={() => setEditNotes(false)} sx={{ fontSize: '0.7rem' }}>Cancel</Button>
+                <Button size="small" variant="contained" onClick={handleSaveNotes} disabled={savingNotes} sx={{ fontSize: '0.7rem', px: 1.5 }}>
+                  {savingNotes ? <CircularProgress size={14} color="inherit" /> : 'Save'}
+                </Button>
+                <Button size="small" onClick={() => setEditNotes(false)} disabled={savingNotes} sx={{ fontSize: '0.7rem' }}>Cancel</Button>
               </Box>
             ) : (
               stop.notes && (
@@ -262,6 +291,7 @@ function StopCard({
                 </Typography>
               )
             )}
+            {error && <Alert severity="error" onClose={() => setError('')} sx={{ mt: 1, py: 0, fontSize: '0.75rem' }}>{error}</Alert>}
           </Box>
           <Box sx={{ display: 'flex', ml: 1, flexShrink: 0 }}>
             <Tooltip title="Edit notes">
