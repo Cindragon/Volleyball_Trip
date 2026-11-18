@@ -67,6 +67,13 @@ export async function initSchema(): Promise<void> {
     )
   `;
 
+  // Postgres does not index foreign keys automatically. These cover the hot
+  // paths: "my trips" (by user, newest first), loading a trip's stops in
+  // display order, and the cascades when a team or trip is deleted.
+  await sql`CREATE INDEX IF NOT EXISTS idx_itineraries_user_date ON itineraries(user_id, visit_date DESC)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_itineraries_team ON itineraries(team_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_stops_itinerary_order ON itinerary_stops(itinerary_id, day, order_index, id)`;
+
   await sql`
     CREATE TABLE IF NOT EXISTS admin_places (
       id         SERIAL PRIMARY KEY,

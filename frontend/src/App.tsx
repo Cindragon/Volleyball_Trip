@@ -1,10 +1,11 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import theme from './theme';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/useAuth';
 import Layout from './components/Layout/Layout';
+import ErrorBoundary from './components/ErrorBoundary';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import HomePage from './pages/HomePage';
@@ -45,8 +46,11 @@ function RequireAdmin({ children }: { children: ReactNode }) {
 }
 
 function AppRoutes() {
+  const { pathname } = useLocation();
   return (
     <Layout>
+      {/* Keyed by path: navigating away from a crashed page gives a fresh boundary. */}
+      <ErrorBoundary key={pathname}>
       <Suspense fallback={<PageFallback />}>
       <Routes>
         <Route path="/"                   element={<HomePage />} />
@@ -60,6 +64,7 @@ function AppRoutes() {
         <Route path="*"                   element={<Navigate to="/" replace />} />
       </Routes>
       </Suspense>
+      </ErrorBoundary>
     </Layout>
   );
 }

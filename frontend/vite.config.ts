@@ -2,6 +2,16 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { readFileSync } from 'node:fs';
+
+/** Headers that vercel.json applies to every page. */
+function productionHeaders(): Record<string, string> {
+  const config = JSON.parse(readFileSync(new URL('./vercel.json', import.meta.url), 'utf-8')) as {
+    headers: { source: string; headers: { key: string; value: string }[] }[];
+  };
+  const all = config.headers.find((h) => h.source === '/(.*)')?.headers ?? [];
+  return Object.fromEntries(all.map(({ key, value }) => [key, value]));
+}
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -20,6 +30,15 @@ export default defineConfig({
      * to access the dev server. Without this, Vite blocks unknown Host headers.
      */
     allowedHosts: ['.ngrok-free.app', '.ngrok-free.dev', '.ngrok.app'],
+  },
+  /**
+   * `npm run build && npm run preview` serves the production build with the
+   * same security headers as Vercel (read from vercel.json), so CSP problems
+   * show up locally before deploying.
+   */
+  preview: {
+    headers: productionHeaders(),
+    proxy: { '/api': 'http://localhost:3001' },
   },
   test: {
     environment: 'jsdom',

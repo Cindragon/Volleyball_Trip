@@ -76,6 +76,15 @@ describe('routing and error handling', () => {
     expect(res.status).toBe(400);
   });
 
+  it('sends security headers and hides the framework', async () => {
+    const res = await request(app).get('/api/health');
+    expect(res.headers['x-powered-by']).toBeUndefined();
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['content-security-policy']).toContain("frame-ancestors 'none'");
+    // Photos may be embedded by the frontend, which lives on another origin.
+    expect(res.headers['cross-origin-resource-policy']).toBe('cross-origin');
+  });
+
   it('returns 403 for disallowed CORS origins', async () => {
     const res = await request(app).get('/api/health').set('Origin', 'https://evil.example');
     expect(res.status).toBe(403);

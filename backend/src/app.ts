@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import dotenv from 'dotenv';
 import authRouter from './routes/auth';
 import teamsRouter from './routes/teams';
@@ -17,6 +18,16 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
 }
 
 const app = express();
+
+// Security headers. This server only returns JSON and proxied images, so the
+// strictest CSP applies. Cross-Origin-Resource-Policy is relaxed because the
+// frontend (another origin) may load place photos straight from this API.
+app.use(
+  helmet({
+    contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 
 // Behind Vercel / ngrok the client IP arrives in X-Forwarded-For; trust one
 // proxy hop so rate limiting keys on the real client, not the proxy.
