@@ -295,13 +295,13 @@ function StopCard({
           </Box>
           <Box sx={{ display: 'flex', ml: 1, flexShrink: 0 }}>
             <Tooltip title="Edit notes">
-              <IconButton size="small" onClick={() => setEditNotes(true)}
+              <IconButton size="small" aria-label={`Edit notes for ${stop.name}`} onClick={() => setEditNotes(true)}
                 sx={{ opacity: 0.4, '&:hover': { opacity: 1 } }}>
                 <EditOutlinedIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
             <Tooltip title="Remove stop">
-              <IconButton size="small" onClick={handleDelete} disabled={deleting}
+              <IconButton size="small" aria-label={`Remove stop ${stop.name}`} onClick={handleDelete} disabled={deleting}
                 sx={{ opacity: 0.4, '&:hover': { opacity: 1, color: 'error.main' } }}>
                 {deleting ? <CircularProgress size={14} /> : <DeleteOutlineIcon sx={{ fontSize: 16 }} />}
               </IconButton>

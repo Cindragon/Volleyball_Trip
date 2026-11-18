@@ -248,7 +248,7 @@ function TeamsTable({ teams, onDelete }: { teams: Team[]; onDelete: (id: number,
                 </Typography>
               </TableCell>
               <TableCell align="right">
-                <IconButton size="small" color="error" onClick={() => onDelete(t.id, t.name)}>
+                <IconButton size="small" color="error" aria-label={`Delete team ${t.name}`} onClick={() => onDelete(t.id, t.name)}>
                   <DeleteIcon fontSize="small" />
                 </IconButton>
               </TableCell>
@@ -295,7 +295,7 @@ function PlacesTable({ places, onDelete }: { places: AdminPlace[]; onDelete: (id
                 </Typography>
               </TableCell>
               <TableCell align="right">
-                <IconButton size="small" color="error" onClick={() => onDelete(p.id, p.name)}>
+                <IconButton size="small" color="error" aria-label={`Delete attraction ${p.name}`} onClick={() => onDelete(p.id, p.name)}>
                   <DeleteIcon fontSize="small" />
                 </IconButton>
               </TableCell>
@@ -353,6 +353,7 @@ function UsersTable({
                     size="small"
                     checked={!!u.is_admin}
                     disabled={isSelf}
+                    slotProps={{ input: { 'aria-label': `Admin role for ${u.username}` } }}
                     onChange={() => onToggleAdmin(u)}
                   />
                 </TableCell>
@@ -361,6 +362,7 @@ function UsersTable({
                     size="small"
                     checked={!!u.is_active}
                     disabled={isSelf}
+                    slotProps={{ input: { 'aria-label': `Account active for ${u.username}` } }}
                     onChange={() => onToggleActive(u)}
                   />
                 </TableCell>

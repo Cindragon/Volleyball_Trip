@@ -87,6 +87,10 @@ export default function Navbar() {
           <>
             <IconButton
               onClick={(e) => setAnchorEl(e.currentTarget)}
+              aria-label={`Account menu for ${user.username}`}
+              aria-haspopup="menu"
+              aria-controls={anchorEl ? 'account-menu' : undefined}
+              aria-expanded={anchorEl ? 'true' : undefined}
               size="small"
               sx={{
                 border: '1px solid var(--color-border)',
@@ -114,6 +118,7 @@ export default function Navbar() {
             </IconButton>
 
             <Menu
+              id="account-menu"
               anchorEl={anchorEl}
               open={Boolean(anchorEl)}
               onClose={() => setAnchorEl(null)}

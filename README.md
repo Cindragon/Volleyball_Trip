@@ -444,6 +444,7 @@ npm run build
 - **Session 安全**：httpOnly cookie + SameSite + CSRF header 檢查，前端與 API 同網域（Vite proxy / Vercel rewrite）
 - **效能**：路由層級 code splitting（`React.lazy`），主程式 bundle 從約 700 kB 降到約 270 kB；外鍵欄位建立索引（「我的行程」、行程停靠點、刪除時的 cascade）
 - **狀態管理**：React Context（全域 Auth）
+- **無障礙**：所有圖示按鈕與開關都有 `aria-label`（例如「Delete trip …」「Account menu for …」），帳號選單提供 `aria-haspopup` / `aria-expanded`
 
 ---
 
