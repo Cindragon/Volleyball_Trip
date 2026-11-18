@@ -17,6 +17,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
 import SettingsIcon from '@mui/icons-material/Settings';
 import DevicesIcon from '@mui/icons-material/Devices';
+import LockResetIcon from '@mui/icons-material/LockReset';
 import { useAuth } from '../../context/useAuth';
 
 const NAV_LINKS: { label: string; to: string; auth?: boolean; admin?: boolean }[] = [
@@ -163,6 +164,10 @@ export default function Navbar() {
                 </MenuItem>
               )}
               <Divider sx={{ my: 1 }} />
+              <MenuItem onClick={() => { setAnchorEl(null); navigate('/account/password'); }}>
+                <ListItemIcon><LockResetIcon fontSize="small" /></ListItemIcon>
+                Change password
+              </MenuItem>
               <MenuItem onClick={handleLogoutEverywhere}>
                 <ListItemIcon><DevicesIcon fontSize="small" /></ListItemIcon>
                 Sign out all devices

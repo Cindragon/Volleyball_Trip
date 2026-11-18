@@ -11,6 +11,18 @@ const router = asyncRouter();
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** New passwords (register / change). Existing shorter passwords still sign in. */
+export const MIN_PASSWORD_LENGTH = 8;
+/** bcrypt only uses the first 72 bytes; refuse longer input instead of silently truncating. */
+const MAX_PASSWORD_BYTES = 72;
+
+function passwordProblem(password: unknown): string | null {
+  if (typeof password !== 'string') return 'Password must be a string';
+  if (password.length < MIN_PASSWORD_LENGTH) return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
+  if (Buffer.byteLength(password, 'utf8') > MAX_PASSWORD_BYTES) return `Password must be at most ${MAX_PASSWORD_BYTES} bytes`;
+  return null;
+}
+
 /** Emails are case-insensitive: trim and lowercase before storing/comparing. */
 function normalizeEmail(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -57,8 +69,9 @@ router.post('/register', authLimiter, async (req: Request, res: Response): Promi
     res.status(422).json({ error: 'Invalid email format' });
     return;
   }
-  if (typeof password !== 'string' || password.length < 6) {
-    res.status(422).json({ error: 'Password must be at least 6 characters' });
+  const problem = passwordProblem(password);
+  if (problem) {
+    res.status(422).json({ error: problem });
     return;
   }
   const username = typeof rawUsername === 'string' ? rawUsername.trim() : '';
@@ -138,6 +151,43 @@ router.post('/logout', (_req: Request, res: Response): void => {
 router.post('/logout-all', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   await sql`UPDATE users SET token_version = token_version + 1 WHERE id = ${req.userId}`;
   clearSessionCookie(res);
+  res.status(204).end();
+});
+
+// PUT /api/auth/password — change your own password.
+// Signs out every other device (token_version + 1) and re-issues this
+// device's cookie with the new version so the current tab stays signed in.
+router.put('/password', requireAuth, authLimiter, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { current_password, new_password } = req.body ?? {};
+  if (typeof current_password !== 'string' || !current_password) {
+    res.status(400).json({ error: 'current_password is required' });
+    return;
+  }
+  const problem = passwordProblem(new_password);
+  if (problem) {
+    res.status(422).json({ error: problem });
+    return;
+  }
+  if (new_password === current_password) {
+    res.status(422).json({ error: 'New password must be different from the current one' });
+    return;
+  }
+
+  const [user] = await sql`SELECT password_hash FROM users WHERE id = ${req.userId}`;
+  if (!user || !(await bcrypt.compare(current_password, user.password_hash as string))) {
+    // 403, not 401: the session is fine, the supplied password is not.
+    res.status(403).json({ error: 'Current password is incorrect' });
+    return;
+  }
+
+  const password_hash = await bcrypt.hash(new_password, 10);
+  const [row] = await sql`
+    UPDATE users
+    SET password_hash = ${password_hash}, token_version = token_version + 1
+    WHERE id = ${req.userId}
+    RETURNING token_version
+  `;
+  setSessionCookie(res, signSession({ userId: req.userId!, username: req.username!, tv: Number(row.token_version) }));
   res.status(204).end();
 });
 
