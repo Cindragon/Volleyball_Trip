@@ -23,7 +23,7 @@ VolleyTrip 是一款地圖功能導向的全端應用，專為排球球迷設計
 | 50 支球隊 | 涵蓋四國頂級聯賽完整球隊資料 |
 | 管理後台 | 管理員可新增/刪除球隊、策展景點、管理會員 |
 | 明亮 UI | FixIt 風格極簡明亮介面（花青藍 + 蓮瓣紅） |
-| 安全與穩定 | 統一錯誤處理、輸入驗證、CSRF 防護、跨 instance 共用的速率限制、登入失效自動登出；刪除 / 儲存失敗時在畫面上顯示錯誤訊息 |
+| 安全與穩定 | 統一錯誤處理、輸入驗證、CSRF 防護、安全性 header（CSP、禁止被 iframe 嵌入）、跨 instance 共用的速率限制、登入失效自動登出；部署新版後自動重新載入，不會白畫面 |
 
 ---
 
@@ -93,7 +93,8 @@ volleyball-trip/
 └── frontend/                   # React + Vite 前端
     ├── src/
     │   ├── components/
-    │   │   └── Layout/         # Navbar、Layout wrapper
+    │   │   ├── Layout/         # Navbar、Layout wrapper
+    │   │   └── ErrorBoundary.tsx # 攔截畫面錯誤；部署新版後自動重新載入
     │   ├── context/
     │   │   ├── AuthContext.tsx # 全域登入狀態（AuthProvider）
     │   │   └── useAuth.ts      # useAuth hook
@@ -111,13 +112,14 @@ volleyball-trip/
     │   ├── types/
     │   │   └── index.ts        # TypeScript 型別定義
     │   ├── utils/
-    │   │   └── errors.ts       # 取出 API 錯誤訊息
+    │   │   ├── errors.ts       # 取出 API 錯誤訊息
+    │   │   └── chunkReload.ts  # 偵測舊版程式檔載入失敗並重新整理一次
     │   ├── config/
     │   │   └── maps.ts         # Google Maps Key 與 Map ID（讀取環境變數）
     │   ├── theme.ts            # MUI 明亮主題（花青藍 #2376b7）
     │   ├── test/setup.ts       # 前端測試設定（Testing Library）
     │   └── App.tsx             # 路由配置（頁面 lazy 載入）+ RequireAuth / RequireAdmin
-    ├── vercel.json             # SPA fallback + 把 /api 轉發到後端（讓 cookie 維持同站）
+    ├── vercel.json             # SPA fallback、/api 轉發到後端、安全性 header（CSP 等）
     └── package.json
 ```
 
@@ -415,6 +417,16 @@ npm run build
 - 前端專案的 `VITE_API_BASE_URL` 請設為後端網址：只用於景點照片，讓照片直接向後端載入，後端可依訪客的真實 IP 做速率限制。
 - 部署後請實際測試：登入 → 重新整理仍保持登入 → 登出。
 
+### 安全性 header
+
+- **前端**（`frontend/vercel.json`）：`Content-Security-Policy`（只允許本站與 Google Maps 的網域）、`X-Frame-Options: DENY`、`X-Content-Type-Options: nosniff`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`。`/assets/*` 設為長期快取，且不會被導向 `index.html`，舊版檔案不存在時會正確回 404。
+- **後端**：使用 `helmet`，移除 `X-Powered-By`，API 回應套用最嚴格的 CSP；`Cross-Origin-Resource-Policy` 設為 `cross-origin`，讓前端可以載入景點照片。
+- 修改 CSP 後可在本機用正式版設定測試：`cd frontend && npm run build && npm run preview`（`vite preview` 會套用 `vercel.json` 裡同樣的 header）。注意 Google Maps 金鑰的 HTTP referrer 若只允許 `localhost:5173`，在 preview 的 4173 port 地圖會顯示 `RefererNotAllowedMapError`，可暫時把 `http://localhost:4173/*` 加進金鑰限制。
+
+### 部署新版時不會白畫面
+
+頁面是按需載入的，部署後舊版的程式檔會消失。如果使用者的分頁是在部署前打開的，切換頁面時會載入失敗；`ErrorBoundary` 與 `vite:preloadError` 會偵測到並自動重新整理一次，載入新版。其他非預期錯誤則顯示「Something went wrong」與重新載入按鈕，不會整頁空白。
+
 ---
 
 ## 技術練習重點
@@ -430,7 +442,7 @@ npm run build
 - **API 安全**：輸入驗證、速率限制（express-rate-limit）、啟動時檢查 `JWT_SECRET`
 - **自動化測試**：後端 vitest + supertest（mock 資料庫）、前端 vitest + Testing Library，GitHub Actions CI
 - **Session 安全**：httpOnly cookie + SameSite + CSRF header 檢查，前端與 API 同網域（Vite proxy / Vercel rewrite）
-- **效能**：路由層級 code splitting（`React.lazy`），主程式 bundle 從約 700 kB 降到約 270 kB
+- **效能**：路由層級 code splitting（`React.lazy`），主程式 bundle 從約 700 kB 降到約 270 kB；外鍵欄位建立索引（「我的行程」、行程停靠點、刪除時的 cascade）
 - **狀態管理**：React Context（全域 Auth）
 
 ---
