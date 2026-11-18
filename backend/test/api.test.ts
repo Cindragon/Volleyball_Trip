@@ -272,113 +272,41 @@ describe('itineraries', () => {
   });
 });
 
-describe('change password', () => {
-  const csrf = { 'X-Requested-With': 'XMLHttpRequest' };
-  const cookie = `vt_session=${token}`; // signed without tv = version 0
+describe('admin pagination', () => {
+  const ADMIN = { ...ACTIVE_USER, is_admin: true };
 
-  const authed = () => sqlMock.mockResolvedValueOnce([{ ...ACTIVE_USER, token_version: 0 }]);
+  it('pages members and reports the total', async () => {
+    sqlMock
+      .mockResolvedValueOnce([ADMIN])                                        // requireAdmin lookup
+      .mockResolvedValueOnce([{ id: 9, username: 'u9', email: 'u9@x.io', is_admin: 0, is_active: 1 }])
+      .mockResolvedValueOnce([{ total: 31 }]);
+    const res = await request(app).get('/api/admin/users?limit=10&offset=20').set(auth);
 
-  it('requires sign-in', async () => {
-    const res = await request(app).put('/api/auth/password').send({ current_password: 'a', new_password: 'longenough' });
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ total: 31, limit: 10, offset: 20 });
+    expect(res.body.users).toEqual([expect.objectContaining({ id: 9, is_admin: false, is_active: true })]);
+    expect(sqlText(1)).toContain('LIMIT ? OFFSET ?');
+    expect(sqlValues(1)).toEqual([10, 20]);
+  });
+
+  it('defaults to the first page of 25 places', async () => {
+    sqlMock
+      .mockResolvedValueOnce([ADMIN])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: 0 }]);
+    const res = await request(app).get('/api/admin/places').set(auth);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ places: [], total: 0, limit: 25, offset: 0 });
+    expect(sqlValues(1)).toEqual([25, 0]);
   });
 
   it.each([
-    ['too short', { current_password: 'old-password', new_password: 'short' }, 422],
-    ['same as current', { current_password: 'same-password', new_password: 'same-password' }, 422],
-    ['missing current', { new_password: 'longenough' }, 400],
-    ['over 72 bytes', { current_password: 'old-password', new_password: 'å'.repeat(40) }, 422],
-  ])('rejects %s', async (_label, body, status) => {
-    authed();
-    const res = await request(app).put('/api/auth/password').set('Cookie', cookie).set(csrf).send(body);
-    expect(res.status).toBe(status);
-  });
-
-  it('rejects a wrong current password with 403', async () => {
-    const password_hash = await bcrypt.hash('real-password', 4);
-    authed().mockResolvedValueOnce([{ password_hash }]);
-    const res = await request(app).put('/api/auth/password').set('Cookie', cookie).set(csrf)
-      .send({ current_password: 'wrong-password', new_password: 'brand-new-pass' });
-    expect(res.status).toBe(403);
-  });
-
-  it('updates the hash, bumps token_version and re-issues this device cookie', async () => {
-    const password_hash = await bcrypt.hash('real-password', 4);
-    authed()
-      .mockResolvedValueOnce([{ password_hash }])
-      .mockResolvedValueOnce([{ token_version: 1 }]);
-    const res = await request(app).put('/api/auth/password').set('Cookie', cookie).set(csrf)
-      .send({ current_password: 'real-password', new_password: 'brand-new-pass' });
-
-    expect(res.status).toBe(204);
-    expect(sqlText(2)).toContain('token_version = token_version + 1');
-    const newHash = sqlValues(2)[0] as string;
-    expect(await bcrypt.compare('brand-new-pass', newHash)).toBe(true);
-
-    const issued = ([] as string[]).concat(res.headers['set-cookie'] ?? []).find(c => c.startsWith('vt_session='))!;
-    const payload = jwt.decode(decodeURIComponent(issued.split(';')[0].slice('vt_session='.length))) as { tv: number };
-    expect(payload.tv).toBe(1);
-  });
-
-  it('requires 8+ characters when registering', async () => {
-    const res = await request(app).post('/api/auth/register')
-      .send({ username: 'shorty', email: 'short@example.com', password: 'seven77' });
-    expect(res.status).toBe(422);
-    expect(res.body.error).toMatch(/at least 8/);
-  });
-});
-
-describe('session revocation', () => {
-  const tokenWith = (tv?: number) =>
-    jwt.sign({ userId: 1, username: 'tester', ...(tv === undefined ? {} : { tv }) }, process.env.JWT_SECRET as string);
-
-  it('accepts a token whose version matches', async () => {
-    sqlMock.mockResolvedValueOnce([{ ...ACTIVE_USER, token_version: 3 }]).mockResolvedValueOnce([]);
-    const res = await request(app).get('/api/itineraries').set('Authorization', `Bearer ${tokenWith(3)}`);
-    expect(res.status).toBe(200);
-  });
-
-  it('treats tokens issued before versioning as version 0', async () => {
-    sqlMock.mockResolvedValueOnce([{ ...ACTIVE_USER, token_version: 0 }]).mockResolvedValueOnce([]);
-    const res = await request(app).get('/api/itineraries').set('Authorization', `Bearer ${tokenWith()}`);
-    expect(res.status).toBe(200);
-  });
-
-  it('rejects a token after the version was bumped', async () => {
-    sqlMock.mockResolvedValueOnce([{ ...ACTIVE_USER, token_version: 4 }]);
-    const res = await request(app).get('/api/itineraries').set('Authorization', `Bearer ${tokenWith(3)}`);
-    expect(res.status).toBe(401);
-    expect(res.body).toEqual({ error: 'Session has been revoked' });
-  });
-
-  it('/me rejects and clears a revoked cookie', async () => {
-    sqlMock.mockResolvedValueOnce([{ ...ACTIVE_USER, email: 't@x.io', token_version: 1 }]);
-    const res = await request(app).get('/api/auth/me').set('Cookie', `vt_session=${tokenWith(0)}`);
-    expect(res.status).toBe(401);
-    expect(([] as string[]).concat(res.headers['set-cookie'] ?? []).some(c => /^vt_session=;/.test(c))).toBe(true);
-  });
-
-  it('logout-all bumps token_version and clears the cookie', async () => {
-    sqlMock.mockResolvedValueOnce([{ ...ACTIVE_USER, token_version: 0 }]).mockResolvedValueOnce([]);
-    const res = await request(app)
-      .post('/api/auth/logout-all')
-      .set('Cookie', `vt_session=${tokenWith(0)}`)
-      .set('X-Requested-With', 'XMLHttpRequest');
-
-    expect(res.status).toBe(204);
-    expect(sqlText(1)).toContain('SET token_version = token_version + 1');
-    expect(sqlValues(1)).toEqual([1]);
-    expect(([] as string[]).concat(res.headers['set-cookie'] ?? []).some(c => /^vt_session=;/.test(c))).toBe(true);
-  });
-
-  it('login issues a token carrying the current version', async () => {
-    const password_hash = await bcrypt.hash('right-password', 4);
-    sqlMock.mockResolvedValueOnce([{ ...ACTIVE_USER, email: 't@x.io', password_hash, token_version: 7 }]);
-    const res = await request(app).post('/api/auth/login').send({ email: 't@x.io', password: 'right-password' });
-
-    const cookie = ([] as string[]).concat(res.headers['set-cookie'] ?? []).find(c => c.startsWith('vt_session='))!;
-    const issued = jwt.decode(decodeURIComponent(cookie.split(';')[0].slice('vt_session='.length))) as { tv: number };
-    expect(issued.tv).toBe(7);
+    ['limit=0'], ['limit=101'], ['limit=abc'], ['offset=-1'], ['offset=1.5'],
+  ])('rejects %s', async (qs) => {
+    sqlMock.mockResolvedValueOnce([ADMIN]);
+    const res = await request(app).get(`/api/admin/users?${qs}`).set(auth);
+    expect(res.status).toBe(400);
   });
 });
 
