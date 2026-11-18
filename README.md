@@ -291,12 +291,14 @@ VITE_API_BASE_URL=http://localhost:3001   # 選填，只用於景點照片網址
 |------|------|------|
 | POST   | `/api/admin/teams` | 新增球隊 |
 | DELETE | `/api/admin/teams/:id` | 刪除球隊（連同行程） |
-| GET    | `/api/admin/places` | 取得所有策展景點 |
+| GET    | `/api/admin/places?limit=&offset=` | 分頁取得策展景點（回傳 `places`、`total`） |
 | POST   | `/api/admin/places` | 新增策展景點 |
 | DELETE | `/api/admin/places/:id` | 刪除策展景點 |
-| GET    | `/api/admin/users` | 取得所有會員 |
+| GET    | `/api/admin/users?limit=&offset=` | 分頁取得會員（回傳 `users`、`total`） |
 | PATCH  | `/api/admin/users/:id/status` | 停用 / 啟用帳號 |
 | PATCH  | `/api/admin/users/:id/admin` | 設定 / 移除管理員權限 |
+
+> 分頁參數：`limit` 1–100（預設 25）、`offset` ≥ 0（預設 0），格式錯誤回傳 400。後台的「Places」與「Members」分頁表格使用這兩個參數，超過一頁時下方會出現分頁控制。
 
 ### 輸入驗證規則
 | 欄位 | 規則 |

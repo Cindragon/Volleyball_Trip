@@ -2,6 +2,7 @@ import { Response } from 'express';
 import sql from '../db/database';
 import { requireAdmin, AuthRequest } from '../middleware/auth';
 import { asyncRouter } from '../middleware/asyncRouter';
+import { parsePagination } from '../utils/pagination';
 
 const router = asyncRouter();
 
@@ -52,9 +53,22 @@ router.delete('/teams/:id', async (req: AuthRequest, res: Response): Promise<voi
 
 const VALID_CATEGORIES = new Set(['tourist_attraction', 'restaurant', 'lodging', 'museum']);
 
-router.get('/places', async (_req: AuthRequest, res: Response): Promise<void> => {
-  const places = await sql`SELECT * FROM admin_places ORDER BY city, category, name`;
-  res.json({ places });
+// GET /api/admin/places?limit=&offset=
+router.get('/places', async (req: AuthRequest, res: Response): Promise<void> => {
+  const page = parsePagination(req.query);
+  if ('error' in page) {
+    res.status(400).json({ error: page.error });
+    return;
+  }
+  const [places, [{ total }]] = await Promise.all([
+    sql`
+      SELECT * FROM admin_places
+      ORDER BY city, category, name, id
+      LIMIT ${page.limit} OFFSET ${page.offset}
+    `,
+    sql`SELECT count(*)::int AS total FROM admin_places`,
+  ]);
+  res.json({ places, total, ...page });
 });
 
 router.post('/places', async (req: AuthRequest, res: Response): Promise<void> => {
@@ -98,12 +112,22 @@ router.delete('/places/:id', async (req: AuthRequest, res: Response): Promise<vo
 
 // ── Users ─────────────────────────────────────────────────────────────────────
 
-router.get('/users', async (_req: AuthRequest, res: Response): Promise<void> => {
-  const rows = await sql`
-    SELECT id, username, email, is_admin, is_active, created_at
-    FROM users
-    ORDER BY is_active DESC, created_at DESC
-  `;
+// GET /api/admin/users?limit=&offset=
+router.get('/users', async (req: AuthRequest, res: Response): Promise<void> => {
+  const page = parsePagination(req.query);
+  if ('error' in page) {
+    res.status(400).json({ error: page.error });
+    return;
+  }
+  const [rows, [{ total }]] = await Promise.all([
+    sql`
+      SELECT id, username, email, is_admin, is_active, created_at
+      FROM users
+      ORDER BY is_active DESC, created_at DESC, id DESC
+      LIMIT ${page.limit} OFFSET ${page.offset}
+    `,
+    sql`SELECT count(*)::int AS total FROM users`,
+  ]);
 
   const users = rows.map(u => ({
     id: u.id,
@@ -113,7 +137,7 @@ router.get('/users', async (_req: AuthRequest, res: Response): Promise<void> => 
     is_active: !!u.is_active,
     created_at: u.created_at,
   }));
-  res.json({ users });
+  res.json({ users, total, ...page });
 });
 
 router.patch('/users/:id/status', async (req: AuthRequest, res: Response): Promise<void> => {

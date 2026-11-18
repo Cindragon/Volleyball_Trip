@@ -382,6 +382,44 @@ describe('session revocation', () => {
   });
 });
 
+describe('admin pagination', () => {
+  const ADMIN = { ...ACTIVE_USER, is_admin: true };
+
+  it('pages members and reports the total', async () => {
+    sqlMock
+      .mockResolvedValueOnce([ADMIN])                                        // requireAdmin lookup
+      .mockResolvedValueOnce([{ id: 9, username: 'u9', email: 'u9@x.io', is_admin: 0, is_active: 1 }])
+      .mockResolvedValueOnce([{ total: 31 }]);
+    const res = await request(app).get('/api/admin/users?limit=10&offset=20').set(auth);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ total: 31, limit: 10, offset: 20 });
+    expect(res.body.users).toEqual([expect.objectContaining({ id: 9, is_admin: false, is_active: true })]);
+    expect(sqlText(1)).toContain('LIMIT ? OFFSET ?');
+    expect(sqlValues(1)).toEqual([10, 20]);
+  });
+
+  it('defaults to the first page of 25 places', async () => {
+    sqlMock
+      .mockResolvedValueOnce([ADMIN])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ total: 0 }]);
+    const res = await request(app).get('/api/admin/places').set(auth);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ places: [], total: 0, limit: 25, offset: 0 });
+    expect(sqlValues(1)).toEqual([25, 0]);
+  });
+
+  it.each([
+    ['limit=0'], ['limit=101'], ['limit=abc'], ['offset=-1'], ['offset=1.5'],
+  ])('rejects %s', async (qs) => {
+    sqlMock.mockResolvedValueOnce([ADMIN]);
+    const res = await request(app).get(`/api/admin/users?${qs}`).set(auth);
+    expect(res.status).toBe(400);
+  });
+});
+
 // Runs last: it exhausts the in-memory auth rate limit for this process.
 describe('rate limiting', () => {
   it('returns 429 after repeated failed logins', async () => {
