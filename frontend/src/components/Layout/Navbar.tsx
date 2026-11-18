@@ -16,6 +16,7 @@ import MapIcon from '@mui/icons-material/Map';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
 import SettingsIcon from '@mui/icons-material/Settings';
+import DevicesIcon from '@mui/icons-material/Devices';
 import { useAuth } from '../../context/useAuth';
 
 const NAV_LINKS: { label: string; to: string; auth?: boolean; admin?: boolean }[] = [
@@ -25,10 +26,21 @@ const NAV_LINKS: { label: string; to: string; auth?: boolean; admin?: boolean }[
 ];
 
 export default function Navbar() {
-  const { user, logout } = useAuth();
+  const { user, logout, logoutEverywhere } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+
+  const handleLogoutEverywhere = async () => {
+    setAnchorEl(null);
+    if (!window.confirm('Sign out on all devices? You will need to sign in again everywhere.')) return;
+    try {
+      await logoutEverywhere();
+      navigate('/login');
+    } catch {
+      window.alert('Could not sign out other devices. Please try again.');
+    }
+  };
 
   const handleLogout = () => {
     setAnchorEl(null);
@@ -151,6 +163,10 @@ export default function Navbar() {
                 </MenuItem>
               )}
               <Divider sx={{ my: 1 }} />
+              <MenuItem onClick={handleLogoutEverywhere}>
+                <ListItemIcon><DevicesIcon fontSize="small" /></ListItemIcon>
+                Sign out all devices
+              </MenuItem>
               <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
                 <ListItemIcon><LogoutIcon fontSize="small" sx={{ color: 'error.main' }} /></ListItemIcon>
                 Sign out

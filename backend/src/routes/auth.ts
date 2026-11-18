@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import { signSession, setSessionCookie, clearSessionCookie, readSessionToken, verifySession } from '../auth/session';
+import { signSession, setSessionCookie, clearSessionCookie, readSessionToken, verifySession, isRevoked } from '../auth/session';
+import { ensureSchemaUpgrades } from '../db/upgrades';
+import { requireAuth, AuthRequest } from '../middleware/auth';
 import sql from '../db/database';
 import { asyncRouter } from '../middleware/asyncRouter';
 import { authLimiter } from '../middleware/rateLimit';
@@ -82,7 +84,8 @@ router.post('/register', authLimiter, async (req: Request, res: Response): Promi
     RETURNING id
   `;
 
-  setSessionCookie(res, signSession({ userId: row.id, username }));
+  // New accounts start at token_version 0 (the column default).
+  setSessionCookie(res, signSession({ userId: row.id, username, tv: 0 }));
 
   // The token travels only in the httpOnly cookie, never in the body.
   res.status(201).json({
@@ -108,6 +111,7 @@ router.post('/login', authLimiter, async (req: Request, res: Response): Promise<
     return;
   }
 
+  await ensureSchemaUpgrades();
   const [user] = await sql`SELECT * FROM users WHERE lower(email) = ${email}`;
 
   if (!user || !(await bcrypt.compare(password, user.password_hash as string))) {
@@ -119,12 +123,20 @@ router.post('/login', authLimiter, async (req: Request, res: Response): Promise<
     return;
   }
 
-  setSessionCookie(res, signSession({ userId: user.id, username: user.username }));
+  setSessionCookie(res, signSession({ userId: user.id, username: user.username, tv: Number(user.token_version ?? 0) }));
   res.json({ user: toPublicUser(user) });
 });
 
 // POST /api/auth/logout — clears the session cookie.
 router.post('/logout', (_req: Request, res: Response): void => {
+  clearSessionCookie(res);
+  res.status(204).end();
+});
+
+// POST /api/auth/logout-all — signs out every device: bumps token_version so
+// all previously issued tokens (including this one) stop working.
+router.post('/logout-all', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  await sql`UPDATE users SET token_version = token_version + 1 WHERE id = ${req.userId}`;
   clearSessionCookie(res);
   res.status(204).end();
 });
@@ -145,13 +157,19 @@ router.get('/me', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
+  await ensureSchemaUpgrades();
   const [user] = await sql`
-    SELECT id, username, email, is_admin, is_active, created_at
+    SELECT id, username, email, is_admin, is_active, created_at, token_version
     FROM users WHERE id = ${payload.userId}
   `;
 
   if (!user) {
     res.status(401).json({ error: 'User no longer exists' });
+    return;
+  }
+  if (isRevoked(payload, user.token_version)) {
+    if (session.viaCookie) clearSessionCookie(res);
+    res.status(401).json({ error: 'Session has been revoked' });
     return;
   }
   if (!user.is_active) {

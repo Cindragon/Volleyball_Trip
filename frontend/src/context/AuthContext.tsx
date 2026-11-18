@@ -45,6 +45,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await authApi.logout().catch(() => {});
   }, []);
 
+  const logoutEverywhere = useCallback(async () => {
+    // Unlike logout(), failure here must surface: other devices would stay signed in.
+    await authApi.logoutAll();
+    setUser(null);
+  }, []);
+
   // The API reported the session is no longer valid: forget the user locally
   // (the server already rejected the cookie). RequireAuth then redirects.
   useEffect(() => {
@@ -53,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, logoutEverywhere }}>
       {children}
     </AuthContext.Provider>
   );

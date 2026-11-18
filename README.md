@@ -249,13 +249,16 @@ VITE_API_BASE_URL=http://localhost:3001   # 選填，只用於景點照片網址
 |------|------|------|
 | POST | `/api/auth/register` | 註冊新帳號，並設定 session cookie |
 | POST | `/api/auth/login` | 登入並設定 session cookie（email 不分大小寫） |
-| POST | `/api/auth/logout` | 清除 session cookie |
+| POST | `/api/auth/logout` | 清除這個裝置的 session cookie |
+| POST | `/api/auth/logout-all` | 登出所有裝置：讓這個帳號之前發出的所有 token 失效（需登入） |
 | GET  | `/api/auth/me` | 取得目前使用者；未登入時回傳 `{ "user": null }` |
 
 **Session 與 CSRF**
 - 登入 / 註冊成功後，JWT 只放在 `vt_session` cookie（`HttpOnly`、`SameSite=Lax`、`Path=/api`，正式環境加上 `Secure`），回應內容不含 token，前端 JavaScript 讀不到。
 - 用 cookie 驗證的寫入請求（POST / PUT / PATCH / DELETE）必須帶 `X-Requested-With` header，否則回傳 403；前端的 axios 已預設帶上。
 - 給 API 工具或測試使用時，仍可改用 `Authorization: Bearer <jwt>` header。
+- **撤銷 session**：`users.token_version` 記錄目前的版本，token 內帶著簽發時的版本（`tv`）。每次請求都會比對，不一致就回傳 401 `Session has been revoked`。「登出所有裝置」（導覽列帳號選單）會把版本加 1，讓所有裝置上的舊 token 立即失效；舊版沒有 `tv` 的 token 視為版本 0。
+- 新欄位由 `src/db/upgrades.ts` 在每個 instance 第一次用到時自動加上（`ADD COLUMN IF NOT EXISTS`），Vercel 部署不需要先手動 migrate。
 
 ### 球隊
 | 方法 | 路徑 | 說明 |
@@ -314,7 +317,7 @@ VITE_API_BASE_URL=http://localhost:3001   # 選填，只用於景點照片網址
 | 狀態碼 | 情境 |
 |--------|------|
 | 400 | 輸入驗證失敗、id 格式錯誤、JSON 格式錯誤 |
-| 401 | 未登入、token 無效或過期（前端會自動登出並導回登入頁） |
+| 401 | 未登入、token 無效、過期或已被撤銷（前端會自動登出並導回登入頁） |
 | 403 | 帳號已停用、非管理員、不允許的 CORS 來源、cookie 寫入請求缺少 `X-Requested-With` |
 | 404 | 資源或路由不存在 |
 | 409 | 資料重複（如 email / username 已被使用） |

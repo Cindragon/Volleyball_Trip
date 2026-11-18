@@ -26,6 +26,13 @@ export const CSRF_HEADER = 'x-requested-with';
 export interface SessionPayload {
   userId: number;
   username: string;
+  /** users.token_version when the token was issued (absent in older tokens = 0). */
+  tv?: number;
+}
+
+/** True when the user has since bumped token_version ("sign out everywhere", password change). */
+export function isRevoked(payload: SessionPayload, currentVersion: unknown): boolean {
+  return (payload.tv ?? 0) !== Number(currentVersion ?? 0);
 }
 
 function cookieOptions(): CookieOptions {

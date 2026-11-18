@@ -8,6 +8,8 @@ export interface AuthContextValue {
   register: (username: string, email: string, password: string) => Promise<void>;
   /** Clears the session on the server (cookie) and locally. */
   logout: () => Promise<void>;
+  /** Signs out every device (server bumps the token version), then this one. */
+  logoutEverywhere: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

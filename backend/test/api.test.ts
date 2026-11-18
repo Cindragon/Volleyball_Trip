@@ -18,6 +18,8 @@ const { sqlMock } = vi.hoisted(() => {
 // The database is fully mocked: each `sql` tagged-template call returns
 // whatever the test queued with mockResolvedValueOnce (default: no rows).
 vi.mock('../src/db/database', () => ({ default: sqlMock }));
+// Schema upgrades run real DDL; keep them out of the queued sql mock calls.
+vi.mock('../src/db/upgrades', () => ({ ensureSchemaUpgrades: () => Promise.resolve() }));
 
 import app from '../src/app';
 
@@ -267,6 +269,60 @@ describe('itineraries', () => {
       .set(auth)
       .send({ name: 'X', lat: 200, lng: 0 });
     expect(res.status).toBe(400);
+  });
+});
+
+describe('session revocation', () => {
+  const tokenWith = (tv?: number) =>
+    jwt.sign({ userId: 1, username: 'tester', ...(tv === undefined ? {} : { tv }) }, process.env.JWT_SECRET as string);
+
+  it('accepts a token whose version matches', async () => {
+    sqlMock.mockResolvedValueOnce([{ ...ACTIVE_USER, token_version: 3 }]).mockResolvedValueOnce([]);
+    const res = await request(app).get('/api/itineraries').set('Authorization', `Bearer ${tokenWith(3)}`);
+    expect(res.status).toBe(200);
+  });
+
+  it('treats tokens issued before versioning as version 0', async () => {
+    sqlMock.mockResolvedValueOnce([{ ...ACTIVE_USER, token_version: 0 }]).mockResolvedValueOnce([]);
+    const res = await request(app).get('/api/itineraries').set('Authorization', `Bearer ${tokenWith()}`);
+    expect(res.status).toBe(200);
+  });
+
+  it('rejects a token after the version was bumped', async () => {
+    sqlMock.mockResolvedValueOnce([{ ...ACTIVE_USER, token_version: 4 }]);
+    const res = await request(app).get('/api/itineraries').set('Authorization', `Bearer ${tokenWith(3)}`);
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: 'Session has been revoked' });
+  });
+
+  it('/me rejects and clears a revoked cookie', async () => {
+    sqlMock.mockResolvedValueOnce([{ ...ACTIVE_USER, email: 't@x.io', token_version: 1 }]);
+    const res = await request(app).get('/api/auth/me').set('Cookie', `vt_session=${tokenWith(0)}`);
+    expect(res.status).toBe(401);
+    expect(([] as string[]).concat(res.headers['set-cookie'] ?? []).some(c => /^vt_session=;/.test(c))).toBe(true);
+  });
+
+  it('logout-all bumps token_version and clears the cookie', async () => {
+    sqlMock.mockResolvedValueOnce([{ ...ACTIVE_USER, token_version: 0 }]).mockResolvedValueOnce([]);
+    const res = await request(app)
+      .post('/api/auth/logout-all')
+      .set('Cookie', `vt_session=${tokenWith(0)}`)
+      .set('X-Requested-With', 'XMLHttpRequest');
+
+    expect(res.status).toBe(204);
+    expect(sqlText(1)).toContain('SET token_version = token_version + 1');
+    expect(sqlValues(1)).toEqual([1]);
+    expect(([] as string[]).concat(res.headers['set-cookie'] ?? []).some(c => /^vt_session=;/.test(c))).toBe(true);
+  });
+
+  it('login issues a token carrying the current version', async () => {
+    const password_hash = await bcrypt.hash('right-password', 4);
+    sqlMock.mockResolvedValueOnce([{ ...ACTIVE_USER, email: 't@x.io', password_hash, token_version: 7 }]);
+    const res = await request(app).post('/api/auth/login').send({ email: 't@x.io', password: 'right-password' });
+
+    const cookie = ([] as string[]).concat(res.headers['set-cookie'] ?? []).find(c => c.startsWith('vt_session='))!;
+    const issued = jwt.decode(decodeURIComponent(cookie.split(';')[0].slice('vt_session='.length))) as { tv: number };
+    expect(issued.tv).toBe(7);
   });
 });
 
