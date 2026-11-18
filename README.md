@@ -23,7 +23,7 @@ VolleyTrip 是一款地圖功能導向的全端應用，專為排球球迷設計
 | 50 支球隊 | 涵蓋四國頂級聯賽完整球隊資料 |
 | 管理後台 | 管理員可新增/刪除球隊、策展景點、管理會員 |
 | 明亮 UI | FixIt 風格極簡明亮介面（花青藍 + 蓮瓣紅） |
-| 安全與穩定 | 統一錯誤處理、輸入驗證、登入與照片代理速率限制、token 失效自動登出 |
+| 安全與穩定 | 統一錯誤處理、輸入驗證、登入與照片代理速率限制、token 失效自動登出；刪除 / 儲存失敗時在畫面上顯示錯誤訊息 |
 
 ---
 
@@ -355,7 +355,7 @@ npm run seed     # 執行 seed.ts，寫入 50 支球隊 + 預設 admin 帳號
 
 ```bash
 cd backend
-npm test           # vitest + supertest，資料庫為 mock，不會連到 Neon
+npm test           # vitest + supertest，資料庫為 mock，不會連到 Neon（vitest 5 需要 Node 22.12+）
 npm run typecheck
 
 cd ../frontend
@@ -364,6 +364,13 @@ npm run build
 ```
 
 每次 push 到 `main` 或開 PR 時，GitHub Actions（`.github/workflows/ci.yml`）會自動執行上述檢查。
+
+### 相依套件安全性
+
+定期在 `backend/` 與 `frontend/` 執行 `npm audit --omit=dev`，確認正式環境用到的套件沒有已知漏洞（目前兩邊都是 0）。
+
+- 後端用 `package.json` 的 `overrides` 把 Express 間接使用的 `qs` 固定在已修補版本（`^6.17.1`）。
+- `npm audit`（含開發工具）仍會列出 `picomatch` / `esbuild` 的警告：它們只在 vite、vitest、tsx 等開發工具中使用，不會部署到正式環境，且 `picomatch` 目前所有版本都被標記、尚無修補版。請不要執行 `npm audit fix --force`，它會把 vite / vitest 降版。
 
 ---
 
