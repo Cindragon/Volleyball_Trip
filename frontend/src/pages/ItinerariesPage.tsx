@@ -27,12 +27,6 @@ function ItineraryCard({ itinerary, onDelete }: { itinerary: Itinerary; onDelete
   const navigate = useNavigate();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const handleDelete = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setConfirmOpen(true);
-  };
-
   const confirmDelete = async () => {
     await itinerariesApi.delete(itinerary.id);
     setConfirmOpen(false);
@@ -58,13 +52,6 @@ function ItineraryCard({ itinerary, onDelete }: { itinerary: Itinerary; onDelete
                 size="small"
                 sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.08em', background: `${itinerary.primary_color}18`, color: itinerary.primary_color, border: `1px solid ${itinerary.primary_color}35` }}
               />
-              <IconButton
-                size="small"
-                onClick={handleDelete}
-                sx={{ opacity: 0.4, '&:hover': { opacity: 1, color: 'error.main' }, mt: -0.5, mr: -0.5 }}
-              >
-                <DeleteOutlineIcon fontSize="small" />
-              </IconButton>
             </Box>
 
             <Typography
@@ -92,6 +79,19 @@ function ItineraryCard({ itinerary, onDelete }: { itinerary: Itinerary; onDelete
             </Box>
           </CardContent>
         </CardActionArea>
+
+        {/* Sibling of CardActionArea (not a child) so we never nest <button> in <button>. */}
+        <IconButton
+          size="small"
+          aria-label={`Delete trip ${itinerary.title}`}
+          onClick={() => setConfirmOpen(true)}
+          sx={{
+            position: 'absolute', top: 15, right: 16,
+            opacity: 0.4, '&:hover, &:focus-visible': { opacity: 1, color: 'error.main' },
+          }}
+        >
+          <DeleteOutlineIcon fontSize="small" />
+        </IconButton>
       </Card>
 
       <Dialog
