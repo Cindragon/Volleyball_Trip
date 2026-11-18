@@ -18,6 +18,8 @@ const { sqlMock } = vi.hoisted(() => {
 // The database is fully mocked: each `sql` tagged-template call returns
 // whatever the test queued with mockResolvedValueOnce (default: no rows).
 vi.mock('../src/db/database', () => ({ default: sqlMock }));
+// Schema upgrades run real DDL; keep them out of the queued sql mock calls.
+vi.mock('../src/db/upgrades', () => ({ ensureSchemaUpgrades: () => Promise.resolve() }));
 
 import app from '../src/app';
 

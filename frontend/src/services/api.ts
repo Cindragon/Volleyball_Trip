@@ -57,6 +57,9 @@ export const authApi = {
 
   logout: () => api.post('/auth/logout'),
 
+  /** Invalidates every session of this account, on all devices. */
+  logoutAll: () => api.post('/auth/logout-all'),
+
   /** `user` is null when there is no session. */
   me: () => api.get<{ user: User | null }>('/auth/me'),
 };
