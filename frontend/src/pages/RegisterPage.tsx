@@ -9,6 +9,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import SportsVolleyballIcon from '@mui/icons-material/SportsVolleyball';
 import { useAuth } from '../context/useAuth';
 import { getErrorMessage } from '../utils/errors';
+import { MIN_PASSWORD_LENGTH } from '../utils/password';
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -73,7 +74,7 @@ export default function RegisterPage() {
         <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <TextField label="Username" value={form.username} onChange={set('username')} required fullWidth size="small" autoComplete="username" />
           <TextField label="Email" type="email" value={form.email} onChange={set('email')} required fullWidth size="small" autoComplete="email" />
-          <TextField label="Password" type="password" value={form.password} onChange={set('password')} required fullWidth size="small" helperText="At least 6 characters" />
+          <TextField label="Password" type="password" value={form.password} onChange={set('password')} required fullWidth size="small" helperText={`At least ${MIN_PASSWORD_LENGTH} characters`} />
           <TextField label="Confirm Password" type="password" value={form.confirm} onChange={set('confirm')} required fullWidth size="small" />
 
           <Button type="submit" variant="contained" color="secondary" fullWidth disabled={loading} sx={{ mt: 1, py: 1.25, fontSize: '0.9rem' }}>

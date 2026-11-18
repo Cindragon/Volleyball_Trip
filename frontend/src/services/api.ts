@@ -57,6 +57,10 @@ export const authApi = {
 
   logout: () => api.post('/auth/logout'),
 
+  /** Changes the password; other devices are signed out, this one gets a fresh cookie. */
+  changePassword: (data: { current_password: string; new_password: string }) =>
+    api.put('/auth/password', data),
+
   /** Invalidates every session of this account, on all devices. */
   logoutAll: () => api.post('/auth/logout-all'),
 

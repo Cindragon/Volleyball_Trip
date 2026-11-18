@@ -25,7 +25,9 @@ export const authLimiter = rateLimit({
   // person's typos cannot lock everyone else out.
   keyGenerator: (req) => {
     const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
-    return `${req.ip}|${email}`;
+    // Password changes run after requireAuth: key them on the account instead.
+    const userId = (req as { userId?: number }).userId;
+    return `${req.ip}|${userId ? `user:${userId}` : email}`;
   },
   store: makeStore('auth'),
   // If the database is briefly unreachable, let the request through rather

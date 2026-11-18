@@ -272,6 +272,62 @@ describe('itineraries', () => {
   });
 });
 
+describe('change password', () => {
+  const csrf = { 'X-Requested-With': 'XMLHttpRequest' };
+  const cookie = `vt_session=${token}`; // signed without tv = version 0
+
+  const authed = () => sqlMock.mockResolvedValueOnce([{ ...ACTIVE_USER, token_version: 0 }]);
+
+  it('requires sign-in', async () => {
+    const res = await request(app).put('/api/auth/password').send({ current_password: 'a', new_password: 'longenough' });
+    expect(res.status).toBe(401);
+  });
+
+  it.each([
+    ['too short', { current_password: 'old-password', new_password: 'short' }, 422],
+    ['same as current', { current_password: 'same-password', new_password: 'same-password' }, 422],
+    ['missing current', { new_password: 'longenough' }, 400],
+    ['over 72 bytes', { current_password: 'old-password', new_password: 'å'.repeat(40) }, 422],
+  ])('rejects %s', async (_label, body, status) => {
+    authed();
+    const res = await request(app).put('/api/auth/password').set('Cookie', cookie).set(csrf).send(body);
+    expect(res.status).toBe(status);
+  });
+
+  it('rejects a wrong current password with 403', async () => {
+    const password_hash = await bcrypt.hash('real-password', 4);
+    authed().mockResolvedValueOnce([{ password_hash }]);
+    const res = await request(app).put('/api/auth/password').set('Cookie', cookie).set(csrf)
+      .send({ current_password: 'wrong-password', new_password: 'brand-new-pass' });
+    expect(res.status).toBe(403);
+  });
+
+  it('updates the hash, bumps token_version and re-issues this device cookie', async () => {
+    const password_hash = await bcrypt.hash('real-password', 4);
+    authed()
+      .mockResolvedValueOnce([{ password_hash }])
+      .mockResolvedValueOnce([{ token_version: 1 }]);
+    const res = await request(app).put('/api/auth/password').set('Cookie', cookie).set(csrf)
+      .send({ current_password: 'real-password', new_password: 'brand-new-pass' });
+
+    expect(res.status).toBe(204);
+    expect(sqlText(2)).toContain('token_version = token_version + 1');
+    const newHash = sqlValues(2)[0] as string;
+    expect(await bcrypt.compare('brand-new-pass', newHash)).toBe(true);
+
+    const issued = ([] as string[]).concat(res.headers['set-cookie'] ?? []).find(c => c.startsWith('vt_session='))!;
+    const payload = jwt.decode(decodeURIComponent(issued.split(';')[0].slice('vt_session='.length))) as { tv: number };
+    expect(payload.tv).toBe(1);
+  });
+
+  it('requires 8+ characters when registering', async () => {
+    const res = await request(app).post('/api/auth/register')
+      .send({ username: 'shorty', email: 'short@example.com', password: 'seven77' });
+    expect(res.status).toBe(422);
+    expect(res.body.error).toMatch(/at least 8/);
+  });
+});
+
 describe('session revocation', () => {
   const tokenWith = (tv?: number) =>
     jwt.sign({ userId: 1, username: 'tester', ...(tv === undefined ? {} : { tv }) }, process.env.JWT_SECRET as string);

@@ -21,6 +21,7 @@ const RegisterPage        = lazy(() => import('./pages/RegisterPage'));
 const ItinerariesPage     = lazy(() => import('./pages/ItinerariesPage'));
 const ItineraryDetailPage = lazy(() => import('./pages/ItineraryDetailPage'));
 const AdminPage           = lazy(() => import('./pages/AdminPage'));
+const ChangePasswordPage  = lazy(() => import('./pages/ChangePasswordPage'));
 
 function PageFallback() {
   return (
@@ -60,6 +61,7 @@ function AppRoutes() {
         <Route path="/register"           element={<RegisterPage />} />
         <Route path="/itineraries"        element={<RequireAuth><ItinerariesPage /></RequireAuth>} />
         <Route path="/itineraries/:id"    element={<RequireAuth><ItineraryDetailPage /></RequireAuth>} />
+        <Route path="/account/password"   element={<RequireAuth><ChangePasswordPage /></RequireAuth>} />
         <Route path="/admin"              element={<RequireAdmin><AdminPage /></RequireAdmin>} />
         <Route path="*"                   element={<Navigate to="/" replace />} />
       </Routes>

@@ -18,7 +18,7 @@ VolleyTrip 是一款地圖功能導向的全端應用，專為排球球迷設計
 |------|------|
 | 地圖整合 | Google Maps 顯示球場位置與行程停靠點 |
 | 周邊搜尋 | Google Places API + 手工策展景點資料雙層備援 |
-| 帳密登入 | 本地帳號註冊 / 登入，JWT 存在 httpOnly cookie（前端程式讀不到） |
+| 帳密登入 | 本地帳號註冊 / 登入 / 修改密碼，JWT 存在 httpOnly cookie（前端程式讀不到），可一鍵登出所有裝置 |
 | 行程 CRUD | 建立、編輯、刪除行程及每日停靠點 |
 | 50 支球隊 | 涵蓋四國頂級聯賽完整球隊資料 |
 | 管理後台 | 管理員可新增/刪除球隊、策展景點、管理會員 |
@@ -251,13 +251,14 @@ VITE_API_BASE_URL=http://localhost:3001   # 選填，只用於景點照片網址
 | POST | `/api/auth/login` | 登入並設定 session cookie（email 不分大小寫） |
 | POST | `/api/auth/logout` | 清除這個裝置的 session cookie |
 | POST | `/api/auth/logout-all` | 登出所有裝置：讓這個帳號之前發出的所有 token 失效（需登入） |
+| PUT  | `/api/auth/password` | 修改密碼（`current_password`、`new_password`）；其他裝置會被登出，目前裝置取得新的 cookie |
 | GET  | `/api/auth/me` | 取得目前使用者；未登入時回傳 `{ "user": null }` |
 
 **Session 與 CSRF**
 - 登入 / 註冊成功後，JWT 只放在 `vt_session` cookie（`HttpOnly`、`SameSite=Lax`、`Path=/api`，正式環境加上 `Secure`），回應內容不含 token，前端 JavaScript 讀不到。
 - 用 cookie 驗證的寫入請求（POST / PUT / PATCH / DELETE）必須帶 `X-Requested-With` header，否則回傳 403；前端的 axios 已預設帶上。
 - 給 API 工具或測試使用時，仍可改用 `Authorization: Bearer <jwt>` header。
-- **撤銷 session**：`users.token_version` 記錄目前的版本，token 內帶著簽發時的版本（`tv`）。每次請求都會比對，不一致就回傳 401 `Session has been revoked`。「登出所有裝置」（導覽列帳號選單）會把版本加 1，讓所有裝置上的舊 token 立即失效；舊版沒有 `tv` 的 token 視為版本 0。
+- **撤銷 session**：`users.token_version` 記錄目前的版本，token 內帶著簽發時的版本（`tv`）。每次請求都會比對，不一致就回傳 401 `Session has been revoked`。「登出所有裝置」與「修改密碼」（都在導覽列帳號選單）會把版本加 1，讓所有裝置上的舊 token 立即失效；舊版沒有 `tv` 的 token 視為版本 0。
 - 新欄位由 `src/db/upgrades.ts` 在每個 instance 第一次用到時自動加上（`ADD COLUMN IF NOT EXISTS`），Vercel 部署不需要先手動 migrate。
 
 ### 球隊
@@ -302,7 +303,7 @@ VITE_API_BASE_URL=http://localhost:3001   # 選填，只用於景點照片網址
 |------|------|
 | `:id` / `:sid` | 正整數 |
 | `email` | 會先 trim 並轉小寫；email 與 username 重複檢查不分大小寫 |
-| `password` | 至少 6 字元 |
+| `password` | 新密碼（註冊、修改密碼）至少 8 字元、最多 72 bytes（bcrypt 上限）；既有較短的密碼仍可登入 |
 | `visit_date` | 合法的 `YYYY-MM-DD`（`2026-02-31` 這類日期會被拒絕） |
 | `title` / 停靠點 `name` | 不可為空白 |
 | `team_id` | 正整數 |
