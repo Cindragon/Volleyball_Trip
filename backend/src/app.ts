@@ -10,7 +10,7 @@ import adminRouter from './routes/admin';
 
 import { errorHandler, notFound } from './middleware/errorHandler';
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 // Fail fast instead of crashing on the first login/register request.
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
