@@ -2,6 +2,16 @@
 
 > 規劃你的兩天一夜排球聖地之旅：選擇球隊 → 探索主場周邊 → 建立行程 → 地圖視覺化
 
+**🌐 線上網址：<https://volleyball-trip.vercel.app>**
+
+| 項目 | 網址 |
+|------|------|
+| 網站 | <https://volleyball-trip.vercel.app> |
+| API 健康檢查 | <https://volleyball-trip.vercel.app/api/health> |
+| 原始碼 | <https://github.com/Cindragon/Volleyball_Trip> |
+
+> 瀏覽球隊與地圖不需登入；建立行程請先註冊帳號。API 透過前端網域的 `/api` 轉發到後端，細節見「部署（Vercel）」。
+
 ---
 
 ## 專案簡介
