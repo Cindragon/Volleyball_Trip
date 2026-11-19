@@ -400,9 +400,19 @@ npm run build
 定期在 `backend/` 與 `frontend/` 執行 `npm audit --omit=dev`，確認正式環境用到的套件沒有已知漏洞（目前兩邊都是 0）。
 
 **Dependabot**（`.github/dependabot.yml`）每週一自動檢查 `backend/`、`frontend/` 的 npm 套件，每月檢查 GitHub Actions：
-- minor / patch 更新合併成一個 PR（每個套件目錄各一個），major 版本各自獨立成 PR，方便評估破壞性變更。
+- **互相依賴的套件綁在同一個 PR 一起升級（包含 major）**：前端的 ESLint 全家（`eslint`、`@eslint/*`、`typescript-eslint`、`eslint-plugin-*`）、React、MUI、Vite / Vitest / Testing Library / Tailwind；後端的 Express 相關（含 `express-rate-limit`、`helmet`、`cors`）、測試工具。避免像 `@eslint/js` 10 單獨合併、`eslint` 還停在 9 而讓 CI 壞掉的狀況。
+- 其他套件：minor / patch 合併成一個 PR，major 版本各自獨立成 PR，方便看 changelog。
+- `@types/node` 不自動升 major，型別版本應跟著實際執行的 Node 版本（`.nvmrc`）。
 - 有安全漏洞的套件，GitHub 會另外開 security update PR（需在 repo 的 Settings → Code security 開啟 Dependabot security updates）。
-- 每個 Dependabot PR 都會跑 CI，通過再合併即可。
+
+### 合併規則（分支保護）
+
+`main` 已開啟分支保護，GitHub 會自動把關：
+- 必須透過 PR 合併，且 `backend`、`frontend` 兩個 CI 都通過才能合併（只認 GitHub Actions 回報的結果）。
+- PR 分支必須跟上最新的 `main`（落後時按「Update branch」），CI 會在合併後的結果上執行，避免兩個各自通過的 PR 合在一起才壞掉。
+- 管理員也適用；禁止 force push 與刪除 `main`；PR 上的討論需標記為已解決。
+- **解衝突時兩邊都保留**：每個 PR 通常會新增自己的程式或測試區塊（例如 `backend/test/api.test.ts` 的 `describe`），在 GitHub 網頁解衝突時不要只留其中一邊；解完後確認 CI 的測試數量沒有變少。
+- Major 升級合併前先看 changelog，一次合併一個。
 
 - 後端用 `package.json` 的 `overrides` 把 Express 間接使用的 `qs` 固定在已修補版本（`^6.17.1`）。
 - `npm audit`（含開發工具）仍會列出 `picomatch` / `esbuild` 的警告：它們只在 vite、vitest、tsx 等開發工具中使用，不會部署到正式環境，且 `picomatch` 目前所有版本都被標記、尚無修補版。請不要執行 `npm audit fix --force`，它會把 vite / vitest 降版。

@@ -1,5 +1,16 @@
-# Weekly dependency update PRs. Minor/patch bumps are grouped into one PR per
-# package so they are easy to review; major versions arrive as separate PRs.
+# Dependency update PRs.
+#
+# Packages that must move together (peer dependencies, shared release trains)
+# are grouped for *every* update type, majors included, so they always arrive
+# in one PR. Splitting them caused a broken main once: @eslint/js 10 (needs
+# eslint 10) was merged on its own while eslint stayed on 9.
+#
+# Everything else: minor + patch bumps share one PR per directory; each major
+# version gets its own PR so its changelog can be reviewed separately.
+#
+# main is branch-protected: the backend and frontend CI jobs must pass (on a
+# branch that is up to date with main) before any of these can be merged.
+# Groups are matched top to bottom; a package joins the first group it fits.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -9,8 +20,16 @@ updates:
       day: monday
     open-pull-requests-limit: 5
     groups:
+      backend-express:
+        patterns: ["express", "@types/express", "express-rate-limit", "cors", "@types/cors", "helmet"]
+      backend-test-tooling:
+        patterns: ["vitest", "@vitest/*", "supertest", "@types/supertest", "tsx"]
       backend-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # Node types should track the runtime (Node 22, see .nvmrc), not the newest Node.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "deps(backend)"
 
@@ -21,8 +40,19 @@ updates:
       day: monday
     open-pull-requests-limit: 5
     groups:
+      frontend-eslint:
+        patterns: ["eslint", "@eslint/*", "typescript-eslint", "@typescript-eslint/*", "eslint-plugin-*", "globals"]
+      frontend-react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      frontend-mui:
+        patterns: ["@mui/*", "@emotion/*"]
+      frontend-build-and-test:
+        patterns: ["vite", "@vitejs/*", "vitest", "@vitest/*", "jsdom", "@testing-library/*", "tailwindcss", "@tailwindcss/*"]
       frontend-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "deps(frontend)"
 
@@ -30,5 +60,8 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
     commit-message:
       prefix: "ci"
