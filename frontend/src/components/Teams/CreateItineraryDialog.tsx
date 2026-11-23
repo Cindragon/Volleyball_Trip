@@ -12,6 +12,7 @@ import Alert from '@mui/material/Alert';
 import { itinerariesApi } from '../../services/api';
 import type { Team } from '../../types';
 import { getErrorMessage } from '../../utils/errors';
+import { MAX_LENGTH, maxLengthProps } from '../../utils/limits';
 
 interface Props {
   team: Team;
@@ -77,6 +78,7 @@ export default function CreateItineraryDialog({ team, open, onClose, onCreated }
             label="Trip title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            slotProps={maxLengthProps(MAX_LENGTH.itineraryTitle)}
             required
             fullWidth
             size="small"
@@ -96,6 +98,7 @@ export default function CreateItineraryDialog({ team, open, onClose, onCreated }
             label="Notes (optional)"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
+            slotProps={maxLengthProps(MAX_LENGTH.notes)}
             multiline
             rows={2}
             fullWidth

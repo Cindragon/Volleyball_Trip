@@ -8,312 +8,21 @@ import Chip from '@mui/material/Chip';
 import Grid from '@mui/material/Grid';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
-import IconButton from '@mui/material/IconButton';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
-import TextField from '@mui/material/TextField';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import DialogActions from '@mui/material/DialogActions';
 import CircularProgress from '@mui/material/CircularProgress';
-import ToggleButton from '@mui/material/ToggleButton';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
-import Tooltip from '@mui/material/Tooltip';
-import Alert from '@mui/material/Alert';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
-import DeleteOutlineIcon from '@mui/icons-material/Delete';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import StarIcon from '@mui/icons-material/Star';
 import SearchIcon from '@mui/icons-material/Search';
-import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow } from '@vis.gl/react-google-maps';
-import { itinerariesApi, placesApi } from '../services/api';
-import { getErrorMessage } from '../utils/errors';
-import type { Itinerary, ItineraryStop, NearbyPlace } from '../types';
-import { COUNTRY_FLAGS, CATEGORY_ICONS } from '../types';
-import { MAPS_KEY, MAP_ID } from '../config/maps';
+import { itinerariesApi } from '../services/api';
+import type { Itinerary, ItineraryStop } from '../types';
+import { COUNTRY_FLAGS } from '../types';
+import EditItineraryDialog from '../components/Itinerary/EditItineraryDialog';
+import AddStopDialog from '../components/Itinerary/AddStopDialog';
+import StopCard from '../components/Itinerary/StopCard';
+import TripMap from '../components/Itinerary/TripMap';
 
-const PLACE_TYPES = [
-  { key: 'tourist_attraction', label: 'Attractions', icon: '🏛️' },
-  { key: 'restaurant',         label: 'Restaurants', icon: '🍽️' },
-  { key: 'lodging',            label: 'Hotels',      icon: '🏨' },
-  { key: 'museum',             label: 'Museums',     icon: '🖼️' },
-  { key: 'cafe',               label: 'Cafés',       icon: '☕' },
-];
-
-// ── Edit itinerary dialog ─────────────────────────────────────────────────────
-function EditItineraryDialog({
-  itinerary, open, onClose, onSaved,
-}: {
-  itinerary: Itinerary; open: boolean;
-  onClose: () => void; onSaved: (updated: Itinerary) => void;
-}) {
-  const [title, setTitle] = useState(itinerary.title);
-  const [visitDate, setVisitDate] = useState(itinerary.visit_date);
-  const [notes, setNotes] = useState(itinerary.notes ?? '');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleSave = async () => {
-    setError('');
-    setLoading(true);
-    try {
-      const { data } = await itinerariesApi.update(itinerary.id, { title, visit_date: visitDate, notes });
-      onSaved(data.itinerary);
-      onClose();
-    } catch (err) {
-      setError(getErrorMessage(err, 'Failed to save trip. Please try again.'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth
-      slotProps={{ paper: { sx: { background: '#ebf0ff', border: '1px solid rgba(10,9,12,0.12)', borderRadius: 2 } } }}>
-      <DialogTitle sx={{ fontFamily: 'var(--font-display)' }}>Edit Trip</DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
-        {error && <Alert severity="error">{error}</Alert>}
-        <TextField label="Title" value={title} onChange={e => setTitle(e.target.value)} fullWidth size="small" />
-        <TextField label="Match date" type="date" value={visitDate} onChange={e => setVisitDate(e.target.value)}
-          fullWidth size="small" slotProps={{ inputLabel: { shrink: true } }} />
-        <TextField label="Notes" value={notes} onChange={e => setNotes(e.target.value)}
-          multiline rows={3} fullWidth size="small" />
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3 }}>
-        <Button onClick={onClose} color="inherit" disabled={loading}>Cancel</Button>
-        <Button onClick={handleSave} variant="contained" disabled={loading}>
-          {loading ? <CircularProgress size={18} color="inherit" /> : 'Save'}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
-// ── Add stop from nearby search ───────────────────────────────────────────────
-function AddStopDialog({
-  itinerary, open, onClose, onAdded,
-}: {
-  itinerary: Itinerary; open: boolean;
-  onClose: () => void; onAdded: (stop: ItineraryStop) => void;
-}) {
-  const [placeType, setPlaceType] = useState('tourist_attraction');
-  const [placesResult, setPlacesResult] = useState<{ key: string; places: NearbyPlace[] } | null>(null);
-  const [day, setDay] = useState<1 | 2>(1);
-  const [adding, setAdding] = useState<string | null>(null);
-  const [addError, setAddError] = useState('');
-
-  const { team_lat, team_lng, team_city } = itinerary;
-  const placesKey = `${team_lat},${team_lng}:${placeType}`;
-
-  // Loading is derived from the request key (no setState in the effect body),
-  // and stale responses are ignored when the type changes mid-request.
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    placesApi.nearby({ lat: team_lat, lng: team_lng, type: placeType, radius: 3000, city: team_city })
-      .then(({ data }) => { if (!cancelled) setPlacesResult({ key: placesKey, places: data.results }); })
-      .catch(() => { if (!cancelled) setPlacesResult({ key: placesKey, places: [] }); });
-    return () => { cancelled = true; };
-  }, [open, placeType, team_lat, team_lng, team_city, placesKey]);
-
-  const places = placesResult?.places ?? [];
-  const loading = open && placesResult?.key !== placesKey;
-
-  const handleAdd = async (place: NearbyPlace) => {
-    setAdding(place.place_id);
-    try {
-      const category = placeType === 'tourist_attraction' ? 'attraction'
-        : placeType === 'lodging' ? 'lodging'
-        : placeType === 'museum' ? 'museum'
-        : placeType === 'cafe' ? 'other'
-        : 'restaurant';
-
-      const { data } = await itinerariesApi.addStop(itinerary.id, {
-        place_id: place.place_id,
-        name: place.name,
-        address: place.address,
-        lat: place.lat,
-        lng: place.lng,
-        category,
-        day,
-        order_index: 0,
-        photo_reference: place.photo_reference ?? undefined,
-      });
-      onAdded(data.stop);
-    } catch (err) {
-      setAddError(getErrorMessage(err, `Failed to add "${place.name}". Please try again.`));
-    } finally {
-      setAdding(null);
-    }
-  };
-
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
-      slotProps={{ paper: { sx: { background: '#ebf0ff', border: '1px solid rgba(240,237,232,0.1)', borderRadius: 2, maxHeight: '80vh' } } }}>
-      <DialogTitle sx={{ pb: 0 }}>
-        <Typography variant="h6" sx={{ fontFamily: 'var(--font-display)' }}>Add a stop</Typography>
-        <Typography variant="body2" color="text.secondary">Nearby {itinerary.arena_name}</Typography>
-      </DialogTitle>
-      <DialogContent sx={{ pt: 2 }}>
-        {addError && <Alert severity="error" onClose={() => setAddError('')} sx={{ mb: 2 }}>{addError}</Alert>}
-        {/* Day selector */}
-        <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center' }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>Add to:</Typography>
-          <ToggleButtonGroup value={day} exclusive onChange={(_, v) => v && setDay(v)} size="small"
-            sx={{ '& .MuiToggleButton-root': { px: 2, fontSize: '0.75rem', fontWeight: 700,
-              '&.Mui-selected': { background: '#2c666e', color: '#ffffff', borderColor: '#0a090c', '&:hover': { background: '#07393c' } } } }}>
-            <ToggleButton value={1}>Day 1</ToggleButton>
-            <ToggleButton value={2}>Day 2</ToggleButton>
-          </ToggleButtonGroup>
-        </Box>
-
-        {/* Place type filter */}
-        <Box sx={{ display: 'flex', gap: 0.75, mb: 2, flexWrap: 'wrap' }}>
-          {PLACE_TYPES.map(pt => (
-            <Chip key={pt.key} label={`${pt.icon} ${pt.label}`} size="small" clickable
-              onClick={() => setPlaceType(pt.key)}
-              sx={{ fontSize: '0.72rem', fontWeight: 600,
-                background: placeType === pt.key ? 'rgba(0,212,170,0.15)' : 'rgba(240,237,232,0.06)',
-                color: placeType === pt.key ? 'secondary.main' : 'text.secondary',
-                border: placeType === pt.key ? '1px solid rgba(0,212,170,0.35)' : '1px solid transparent' }} />
-          ))}
-        </Box>
-
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-            <CircularProgress color="secondary" size={24} />
-          </Box>
-        ) : (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {places.slice(0, 10).map(place => (
-              <Box key={place.place_id} sx={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                p: 1.5, borderRadius: 1, border: '1px solid rgba(240,237,232,0.07)',
-                background: '#ffffff',
-              }}>
-                <Box sx={{ flex: 1, minWidth: 0, mr: 1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.85rem' }} noWrap>{place.name}</Typography>
-                  <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>{place.address}</Typography>
-                  {place.rating && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, mt: 0.25 }}>
-                      <StarIcon sx={{ fontSize: 11, color: 'var(--color-gold)' }} />
-                      <Typography variant="caption" sx={{ fontSize: '0.7rem', color: 'var(--color-gold)', fontWeight: 700 }}>{place.rating}</Typography>
-                    </Box>
-                  )}
-                </Box>
-                <Button size="small" variant="outlined" color="secondary"
-                  onClick={() => handleAdd(place)}
-                  disabled={adding === place.place_id}
-                  sx={{ fontSize: '0.72rem', minWidth: 64, flexShrink: 0 }}>
-                  {adding === place.place_id ? <CircularProgress size={14} color="inherit" /> : '+ Add'}
-                </Button>
-              </Box>
-            ))}
-          </Box>
-        )}
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3 }}>
-        <Button onClick={onClose} color="inherit">Done</Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
-// ── Stop card ─────────────────────────────────────────────────────────────────
-function StopCard({
-  stop, itineraryId, onDeleted, onUpdated,
-}: {
-  stop: ItineraryStop; itineraryId: number;
-  onDeleted: (id: number) => void; onUpdated: (stop: ItineraryStop) => void;
-}) {
-  const [editNotes, setEditNotes] = useState(false);
-  const [notes, setNotes] = useState(stop.notes ?? '');
-  const [deleting, setDeleting] = useState(false);
-  const [savingNotes, setSavingNotes] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleDelete = async () => {
-    setError('');
-    setDeleting(true);
-    try {
-      await itinerariesApi.deleteStop(itineraryId, stop.id);
-      onDeleted(stop.id); // unmounts this card on success
-    } catch (err) {
-      setError(getErrorMessage(err, 'Failed to remove stop. Please try again.'));
-      setDeleting(false);
-    }
-  };
-
-  const handleSaveNotes = async () => {
-    setError('');
-    setSavingNotes(true);
-    try {
-      const { data } = await itinerariesApi.updateStop(itineraryId, stop.id, { notes });
-      onUpdated(data.stop);
-      setEditNotes(false);
-    } catch (err) {
-      setError(getErrorMessage(err, 'Failed to save notes. Please try again.'));
-    } finally {
-      setSavingNotes(false);
-    }
-  };
-
-  return (
-    <Card sx={{ background: 'transparent', border: '1px solid rgba(10,9,12,0.18)', mb: 1 }}>
-      <CardContent sx={{ p: '12px 16px !important' }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.25 }}>
-              <span style={{ fontSize: '0.9rem' }}>{CATEGORY_ICONS[stop.category]}</span>
-              <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.88rem' }} noWrap>{stop.name}</Typography>
-            </Box>
-            {stop.address && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }} noWrap>
-                {stop.address}
-              </Typography>
-            )}
-            {editNotes ? (
-              <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                <TextField value={notes} onChange={e => setNotes(e.target.value)}
-                  size="small" fullWidth placeholder="Add notes…"
-                  sx={{ '& input': { fontSize: '0.8rem' } }} />
-                <Button size="small" variant="contained" onClick={handleSaveNotes} disabled={savingNotes} sx={{ fontSize: '0.7rem', px: 1.5 }}>
-                  {savingNotes ? <CircularProgress size={14} color="inherit" /> : 'Save'}
-                </Button>
-                <Button size="small" onClick={() => setEditNotes(false)} disabled={savingNotes} sx={{ fontSize: '0.7rem' }}>Cancel</Button>
-              </Box>
-            ) : (
-              stop.notes && (
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic', display: 'block', mt: 0.5 }}>
-                  {stop.notes}
-                </Typography>
-              )
-            )}
-            {error && <Alert severity="error" onClose={() => setError('')} sx={{ mt: 1, py: 0, fontSize: '0.75rem' }}>{error}</Alert>}
-          </Box>
-          <Box sx={{ display: 'flex', ml: 1, flexShrink: 0 }}>
-            <Tooltip title="Edit notes">
-              <IconButton size="small" aria-label={`Edit notes for ${stop.name}`} onClick={() => setEditNotes(true)}
-                sx={{ opacity: 0.4, '&:hover': { opacity: 1 } }}>
-                <EditOutlinedIcon sx={{ fontSize: 16 }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Remove stop">
-              <IconButton size="small" aria-label={`Remove stop ${stop.name}`} onClick={handleDelete} disabled={deleting}
-                sx={{ opacity: 0.4, '&:hover': { opacity: 1, color: 'error.main' } }}>
-                {deleting ? <CircularProgress size={14} /> : <DeleteOutlineIcon sx={{ fontSize: 16 }} />}
-              </IconButton>
-            </Tooltip>
-          </Box>
-        </Box>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ── Main page ─────────────────────────────────────────────────────────────────
 export default function ItineraryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -322,7 +31,6 @@ export default function ItineraryDetailPage() {
   const [dayTab, setDayTab] = useState(0);
   const [editOpen, setEditOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  const [selectedMarker, setSelectedMarker] = useState<ItineraryStop | null>(null);
 
   const fetch = useCallback(() => {
     if (!id) return;
@@ -372,18 +80,6 @@ export default function ItineraryDetailPage() {
 
   const fmt = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   const flag = COUNTRY_FLAGS[itinerary.team_country] ?? '';
-
-  // Build map markers: arena + current day stops
-  const arenaPos = { lat: itinerary.team_lat, lng: itinerary.team_lng };
-  const allStopsOnMap = stops;
-
-  // Map center: if stops exist use centroid, else arena
-  const mapCenter = allStopsOnMap.length > 0
-    ? {
-        lat: allStopsOnMap.reduce((s, p) => s + p.lat, 0) / allStopsOnMap.length,
-        lng: allStopsOnMap.reduce((s, p) => s + p.lng, 0) / allStopsOnMap.length,
-      }
-    : arenaPos;
 
   return (
     <Box sx={{ minHeight: '100vh' }}>
@@ -489,72 +185,7 @@ export default function ItineraryDetailPage() {
           {/* Right — map */}
           <Grid size={{ xs: 12, lg: 7 }}>
             <Typography className="section-label" sx={{ mb: 2 }}>Trip Map</Typography>
-            <Box className="map-container" sx={{ height: { xs: 340, md: 500 } }}>
-              <APIProvider apiKey={MAPS_KEY}>
-                <Map
-                  defaultCenter={mapCenter}
-                  defaultZoom={14}
-                  mapId={MAP_ID}
-                  style={{ width: '100%', height: '100%' }}
-                  colorScheme="DARK"
-                >
-                  {/* Arena marker */}
-                  <AdvancedMarker position={arenaPos} title={itinerary.arena_name}>
-                    <Pin background={itinerary.primary_color} borderColor="#0a090c" glyphColor="#fff" scale={1.3} />
-                  </AdvancedMarker>
-
-                  {/* Stop markers */}
-                  {stops.map(stop => (
-                    <AdvancedMarker
-                      key={stop.id}
-                      position={{ lat: stop.lat, lng: stop.lng }}
-                      title={stop.name}
-                      onClick={() => setSelectedMarker(stop)}
-                    >
-                      <Pin
-                        background={stop.day === 1 ? '#2c666e' : '#eef7f7'}
-                        borderColor="#0a090c"
-                        glyphColor="#fff"
-                        scale={0.9}
-                      />
-                    </AdvancedMarker>
-                  ))}
-
-                  {/* Info window for selected marker */}
-                  {selectedMarker && (
-                    <InfoWindow
-                      position={{ lat: selectedMarker.lat, lng: selectedMarker.lng }}
-                      onCloseClick={() => setSelectedMarker(null)}
-                    >
-                      <Box sx={{ p: 0.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#0a090c', fontSize: '0.85rem' }}>
-                          {selectedMarker.name}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: '#555' }}>
-                          Day {selectedMarker.day} · {selectedMarker.category}
-                        </Typography>
-                      </Box>
-                    </InfoWindow>
-                  )}
-                </Map>
-              </APIProvider>
-            </Box>
-
-            {/* Legend */}
-            <Box sx={{ display: 'flex', gap: 2.5, mt: 1.5, px: 0.5 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                <Box sx={{ width: 12, height: 12, borderRadius: '50%', background: itinerary.primary_color }} />
-                <Typography variant="caption" color="text.secondary">Arena</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                <Box sx={{ width: 12, height: 12, borderRadius: '50%', background: '#2c666e' }} />
-                <Typography variant="caption" color="text.secondary">Day 1 stops</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                <Box sx={{ width: 12, height: 12, borderRadius: '50%', background: '#eef7f7', border: '1px solid #0a090c' }} />
-                <Typography variant="caption" color="text.secondary">Day 2 stops</Typography>
-              </Box>
-            </Box>
+            <TripMap itinerary={itinerary} stops={stops} />
           </Grid>
         </Grid>
       </Container>

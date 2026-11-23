@@ -10,6 +10,7 @@ import SportsVolleyballIcon from '@mui/icons-material/SportsVolleyball';
 import { useAuth } from '../context/useAuth';
 import { getErrorMessage } from '../utils/errors';
 import { MIN_PASSWORD_LENGTH } from '../utils/password';
+import { MAX_LENGTH, maxLengthProps } from '../utils/limits';
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -72,8 +73,10 @@ export default function RegisterPage() {
         {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 1 }}>{error}</Alert>}
 
         <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <TextField label="Username" value={form.username} onChange={set('username')} required fullWidth size="small" autoComplete="username" />
-          <TextField label="Email" type="email" value={form.email} onChange={set('email')} required fullWidth size="small" autoComplete="email" />
+          <TextField label="Username" value={form.username} onChange={set('username')} required fullWidth size="small" autoComplete="username"
+            slotProps={maxLengthProps(MAX_LENGTH.username)} />
+          <TextField label="Email" type="email" value={form.email} onChange={set('email')} required fullWidth size="small" autoComplete="email"
+            slotProps={maxLengthProps(MAX_LENGTH.email)} />
           <TextField label="Password" type="password" value={form.password} onChange={set('password')} required fullWidth size="small" helperText={`At least ${MIN_PASSWORD_LENGTH} characters`} />
           <TextField label="Confirm Password" type="password" value={form.confirm} onChange={set('confirm')} required fullWidth size="small" />
 
