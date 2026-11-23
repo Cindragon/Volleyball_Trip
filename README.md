@@ -413,6 +413,7 @@ npm run build
 - **互相依賴的套件綁在同一個 PR 一起升級（包含 major）**：前端的 ESLint 全家（`eslint`、`@eslint/*`、`typescript-eslint`、`eslint-plugin-*`）、React、MUI、Vite / Vitest / Testing Library / Tailwind；後端的 Express 相關（含 `express-rate-limit`、`helmet`、`cors`）、測試工具。避免像 `@eslint/js` 10 單獨合併、`eslint` 還停在 9 而讓 CI 壞掉的狀況。
 - 其他套件：minor / patch 合併成一個 PR，major 版本各自獨立成 PR，方便看 changelog。
 - `@types/node` 不自動升 major，型別版本應跟著實際執行的 Node 版本（`.nvmrc`）。
+- 前端暫時不升 TypeScript 7：`typescript-eslint` 8.x 只支援 TypeScript 6.1 以下，裝 TS 7 會讓 `npm install` 失敗。等 `typescript-eslint` 支援 TS 7 後，再把 `dependabot.yml` 裡的這條忽略規則拿掉。
 - 有安全漏洞的套件，GitHub 會另外開 security update PR（需在 repo 的 Settings → Code security 開啟 Dependabot security updates）。
 
 ### 合併規則（分支保護）
