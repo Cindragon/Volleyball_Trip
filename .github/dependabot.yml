@@ -53,6 +53,10 @@ updates:
     ignore:
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+      # typescript-eslint 8.x has a peer range of typescript <6.1, so TS 7 fails
+      # npm install. Remove this once typescript-eslint supports TypeScript 7.
+      - dependency-name: "typescript"
+        versions: [">= 7"]
     commit-message:
       prefix: "deps(frontend)"
 
