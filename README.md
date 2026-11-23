@@ -104,6 +104,8 @@ volleyball-trip/
     ├── src/
     │   ├── components/
     │   │   ├── Layout/         # Navbar、Layout wrapper
+    │   │   ├── Itinerary/      # 行程頁元件：TripMap、StopCard、AddStopDialog、EditItineraryDialog
+    │   │   ├── Admin/          # 後台元件：Teams / Places / Users 表格、分頁、新增球隊 / 景點對話框
     │   │   └── ErrorBoundary.tsx # 攔截畫面錯誤；部署新版後自動重新載入
     │   ├── context/
     │   │   ├── AuthContext.tsx # 全域登入狀態（AuthProvider）
@@ -115,19 +117,22 @@ volleyball-trip/
     │   │   ├── LoginPage.tsx
     │   │   ├── RegisterPage.tsx
     │   │   ├── ItinerariesPage.tsx
-    │   │   ├── ItineraryDetailPage.tsx
-    │   │   └── AdminPage.tsx   # 管理後台（需 is_admin）
+    │   │   ├── ItineraryDetailPage.tsx # 行程詳情（載入資料、分天切換，畫面交給 components/Itinerary）
+    │   │   └── AdminPage.tsx   # 管理後台（需 is_admin；表格與對話框在 components/Admin）
     │   ├── services/
     │   │   └── api.ts          # Axios instance + 所有 API 呼叫
     │   ├── types/
     │   │   └── index.ts        # TypeScript 型別定義
     │   ├── utils/
     │   │   ├── errors.ts       # 取出 API 錯誤訊息
-    │   │   └── chunkReload.ts  # 偵測舊版程式檔載入失敗並重新整理一次
+    │   │   ├── chunkReload.ts  # 偵測舊版程式檔載入失敗並重新整理一次
+    │   │   ├── limits.ts       # 表單欄位長度上限（與後端 utils/limits.ts 一致）
+    │   │   ├── stopCategory.ts # 搜尋類型 → 停靠點類別
+    │   │   └── tripMap.ts      # 行程地圖中心點計算
     │   ├── config/
     │   │   └── maps.ts         # Google Maps Key 與 Map ID（讀取環境變數）
     │   ├── theme.ts            # MUI 明亮主題（花青藍 #2376b7）
-    │   ├── test/setup.ts       # 前端測試設定（Testing Library）
+    │   ├── test/               # 測試設定（setup.ts）與共用測試資料（fixtures.ts）
     │   └── App.tsx             # 路由配置（頁面 lazy 載入）+ RequireAuth / RequireAdmin
     ├── vercel.json             # SPA fallback、/api 轉發到後端、安全性 header（CSP 等）
     └── package.json
@@ -399,7 +404,7 @@ npm run typecheck
 
 cd ../frontend
 npm run lint
-npm test           # vitest + Testing Library（jsdom）：API client、登入狀態、受保護路由
+npm test           # vitest + Testing Library（jsdom）：API client、登入狀態、受保護路由、行程頁（分天、刪除停靠點、新增 / 編輯流程）
 npm run build
 ```
 
