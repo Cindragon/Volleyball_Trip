@@ -3,7 +3,8 @@ import axios from 'axios';
 import { getCuratedNearby, filterByType, CuratedPlace } from '../db/curatedPlaces';
 import sql from '../db/database';
 import { asyncRouter } from '../middleware/asyncRouter';
-import { photoLimiter } from '../middleware/rateLimit';
+import { photoLimiter, placesLimiter } from '../middleware/rateLimit';
+import { MAX_LENGTH } from '../utils/limits';
 
 const router = asyncRouter();
 
@@ -46,8 +47,25 @@ async function getAdminPlacesForCity(
 
 const MAPS_KEY = () => process.env.GOOGLE_MAPS_API_KEY as string;
 
-router.get('/nearby', async (req: Request, res: Response): Promise<void> => {
-  const { lat, lng, type, radius = '2000', keyword, city } = req.query;
+/**
+ * Upper bound for each Google call. Without it a slow Google response keeps the
+ * serverless function alive until the platform kills it; with it we fall back
+ * to the curated list instead.
+ */
+export const GOOGLE_TIMEOUT_MS = 5000;
+
+const MAX_RADIUS_M = 50000; // Google Places Nearby Search maximum
+// Google place types are lower_snake_case words, e.g. tourist_attraction.
+const PLACE_TYPE_REGEX = /^[a-z_]{1,50}$/;
+
+/** Optional single-valued query string (rejects repeated params like ?city=a&city=b). */
+function optionalQueryString(v: unknown): string | undefined | null {
+  if (v === undefined || v === '') return undefined;
+  return typeof v === 'string' ? v : null;
+}
+
+router.get('/nearby', placesLimiter, async (req: Request, res: Response): Promise<void> => {
+  const { lat, lng, radius = '2000' } = req.query;
 
   if (!lat || !lng) {
     res.status(400).json({ error: 'lat and lng are required' });
@@ -56,8 +74,31 @@ router.get('/nearby', async (req: Request, res: Response): Promise<void> => {
 
   const latNum = Number(lat);
   const lngNum = Number(lng);
-  const typeStr = type ? String(type) : undefined;
-  const cityStr = city ? String(city) : undefined;
+  if (!Number.isFinite(latNum) || Math.abs(latNum) > 90 || !Number.isFinite(lngNum) || Math.abs(lngNum) > 180) {
+    res.status(400).json({ error: 'lat must be between -90 and 90 and lng between -180 and 180' });
+    return;
+  }
+  const radiusNum = Number(radius);
+  if (!Number.isInteger(radiusNum) || radiusNum < 1 || radiusNum > MAX_RADIUS_M) {
+    res.status(400).json({ error: `radius must be an integer between 1 and ${MAX_RADIUS_M}` });
+    return;
+  }
+
+  const typeStr = optionalQueryString(req.query.type);
+  const cityStr = optionalQueryString(req.query.city);
+  const keyword = optionalQueryString(req.query.keyword);
+  if (typeStr === null || (typeStr !== undefined && !PLACE_TYPE_REGEX.test(typeStr))) {
+    res.status(400).json({ error: 'type must be a Google place type such as tourist_attraction' });
+    return;
+  }
+  if (cityStr === null || (cityStr !== undefined && cityStr.length > MAX_LENGTH.city)) {
+    res.status(400).json({ error: `city must be at most ${MAX_LENGTH.city} characters` });
+    return;
+  }
+  if (keyword === null || (keyword !== undefined && keyword.length > MAX_LENGTH.keyword)) {
+    res.status(400).json({ error: `keyword must be at most ${MAX_LENGTH.keyword} characters` });
+    return;
+  }
 
   const buildFallback = async (): Promise<CuratedPlace[]> => {
     const admin = await getAdminPlacesForCity(cityStr, typeStr);
@@ -73,16 +114,16 @@ router.get('/nearby', async (req: Request, res: Response): Promise<void> => {
 
   try {
     const params: Record<string, string> = {
-      location: `${lat},${lng}`,
-      radius: radius as string,
+      location: `${latNum},${lngNum}`,
+      radius: String(radiusNum),
       key,
     };
     if (typeStr) params.type = typeStr;
-    if (keyword) params.keyword = keyword as string;
+    if (keyword) params.keyword = keyword;
 
     const response = await axios.get(
       'https://maps.googleapis.com/maps/api/place/nearbysearch/json',
-      { params }
+      { params, timeout: GOOGLE_TIMEOUT_MS }
     );
 
     const results = (response.data.results as any[]).map(place => ({
@@ -148,6 +189,7 @@ router.get('/photo', photoLimiter, async (req: Request, res: Response): Promise<
       {
         params: { photoreference: ref, maxwidth: width, key },
         responseType: 'stream',
+        timeout: GOOGLE_TIMEOUT_MS,
       }
     );
     const contentType = response.headers['content-type'] as string | undefined;

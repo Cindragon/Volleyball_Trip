@@ -48,6 +48,17 @@ export const authLimiter = rateLimit({
   message: { error: 'Too many attempts, please try again later' },
 });
 
+/** Google Places nearby search: every call spends server-side API key quota. */
+export const placesLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 30,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  store: makeStore('places'),
+  passOnStoreError: true,
+  message: { error: 'Too many place searches, please slow down' },
+});
+
 /** Google Places photo proxy: protects the server-side API key quota. */
 export const photoLimiter = rateLimit({
   windowMs: 60 * 1000,
