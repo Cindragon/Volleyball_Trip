@@ -2,6 +2,7 @@ import { Response } from 'express';
 import sql from '../db/database';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 import { asyncRouter } from '../middleware/asyncRouter';
+import { MAX_LENGTH, MAX_STOPS_PER_ITINERARY, STOP_CATEGORIES, lengthError } from '../utils/limits';
 
 const router = asyncRouter();
 
@@ -40,17 +41,37 @@ function isCoord(v: unknown, max: number): boolean {
 const has = (body: object, key: string) => Object.prototype.hasOwnProperty.call(body, key);
 
 /** Validates whichever stop fields are present; returns an error message or null. */
+const STOP_CATEGORY_SET = new Set<string>(STOP_CATEGORIES);
+
 function validateStopFields(fields: {
   name?: unknown; day?: unknown; order_index?: unknown; lat?: unknown; lng?: unknown;
+  category?: unknown; address?: unknown; notes?: unknown; place_id?: unknown; photo_reference?: unknown;
 }): string | null {
   if ('name' in fields && !isNonEmptyText(fields.name)) return 'name must be a non-empty string';
+  if ('category' in fields && fields.category != null && !STOP_CATEGORY_SET.has(fields.category as string)) {
+    return `category must be one of: ${STOP_CATEGORIES.join(', ')}`;
+  }
   if ('day' in fields && fields.day !== undefined && !isValidDay(fields.day)) return 'day must be 1 or 2';
   if ('order_index' in fields && fields.order_index !== undefined && !isValidOrderIndex(fields.order_index)) {
     return 'order_index must be a non-negative integer';
   }
   if ('lat' in fields && !isCoord(fields.lat, 90)) return 'lat must be a number between -90 and 90';
   if ('lng' in fields && !isCoord(fields.lng, 180)) return 'lng must be a number between -180 and 180';
-  return null;
+  return lengthError({
+    name: [fields.name, MAX_LENGTH.stopName],
+    address: [fields.address, MAX_LENGTH.address],
+    notes: [fields.notes, MAX_LENGTH.notes],
+    place_id: [fields.place_id, MAX_LENGTH.placeId],
+    photo_reference: [fields.photo_reference, MAX_LENGTH.photoReference],
+  });
+}
+
+/** Length checks for itinerary text fields (title, notes). */
+function itineraryLengthError(body: { title?: unknown; notes?: unknown }): string | null {
+  return lengthError({
+    title: [typeof body.title === 'string' ? body.title.trim() : body.title, MAX_LENGTH.itineraryTitle],
+    notes: [body.notes, MAX_LENGTH.notes],
+  });
 }
 
 router.use(requireAuth);
@@ -89,6 +110,11 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
   }
   if (!isValidDate(visit_date)) {
     res.status(400).json({ error: 'visit_date must be a valid date (YYYY-MM-DD)' });
+    return;
+  }
+  const createLengthError = itineraryLengthError({ title, notes });
+  if (createLengthError) {
+    res.status(400).json({ error: createLengthError });
     return;
   }
 
@@ -152,6 +178,11 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
     res.status(400).json({ error: 'visit_date must be a valid date (YYYY-MM-DD)' });
     return;
   }
+  const updateLengthError = itineraryLengthError(body);
+  if (updateLengthError) {
+    res.status(400).json({ error: updateLengthError });
+    return;
+  }
 
   const [existing] = await sql`
     SELECT id FROM itineraries WHERE id = ${req.params.id} AND user_id = ${req.userId}
@@ -212,9 +243,19 @@ router.post('/:id/stops', async (req: AuthRequest, res: Response): Promise<void>
     res.status(400).json({ error: 'name, lat, and lng are required' });
     return;
   }
-  const stopError = validateStopFields({ name, day, order_index, lat, lng });
+  const stopError = validateStopFields({
+    name, day, order_index, lat, lng, category, address, notes, place_id, photo_reference,
+  });
   if (stopError) {
     res.status(400).json({ error: stopError });
+    return;
+  }
+
+  const [{ count }] = await sql`
+    SELECT count(*)::int AS count FROM itinerary_stops WHERE itinerary_id = ${req.params.id}
+  `;
+  if (count >= MAX_STOPS_PER_ITINERARY) {
+    res.status(409).json({ error: `An itinerary can have at most ${MAX_STOPS_PER_ITINERARY} stops` });
     return;
   }
 
@@ -250,6 +291,9 @@ router.put('/:id/stops/:sid', async (req: AuthRequest, res: Response): Promise<v
     ...(has(body, 'name') && { name }),
     ...(has(body, 'day') && { day }),
     ...(has(body, 'order_index') && { order_index }),
+    ...(has(body, 'category') && { category }),
+    ...(has(body, 'address') && { address }),
+    ...(has(body, 'notes') && { notes }),
   });
   if (stopError) {
     res.status(400).json({ error: stopError });

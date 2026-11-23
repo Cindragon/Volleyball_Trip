@@ -3,6 +3,7 @@ import sql from '../db/database';
 import { requireAdmin, AuthRequest } from '../middleware/auth';
 import { asyncRouter } from '../middleware/asyncRouter';
 import { parsePagination } from '../utils/pagination';
+import { MAX_LENGTH, lengthError } from '../utils/limits';
 
 const router = asyncRouter();
 
@@ -82,6 +83,15 @@ router.post('/places', async (req: AuthRequest, res: Response): Promise<void> =>
     res.status(400).json({
       error: `category must be one of: ${Array.from(VALID_CATEGORIES).join(', ')}`,
     });
+    return;
+  }
+  const tooLong = lengthError({
+    city: [city, MAX_LENGTH.city],
+    name: [name, MAX_LENGTH.stopName],
+    address: [address, MAX_LENGTH.address],
+  });
+  if (tooLong) {
+    res.status(400).json({ error: tooLong });
     return;
   }
 

@@ -85,7 +85,7 @@ volleyball-trip/
 │   │   │   ├── auth.ts         # requireAuth / requireAdmin middleware
 │   │   │   ├── asyncRouter.ts  # 自動包裝 async handler、驗證 :id 參數
 │   │   │   ├── errorHandler.ts # 全域錯誤處理（不外洩內部錯誤）
-│   │   │   ├── rateLimit.ts    # 登入 / 照片代理速率限制
+│   │   │   ├── rateLimit.ts    # 登入 / 周邊搜尋 / 照片代理速率限制
 │   │   │   └── postgresRateLimitStore.ts # 速率限制計數存在 Postgres（跨 instance 共用）
 │   │   ├── routes/
 │   │   │   ├── auth.ts         # 註冊 / 登入 / 登出 / /me
@@ -293,7 +293,7 @@ VITE_API_BASE_URL=http://localhost:3001   # 選填，只用於景點照片網址
 ### 地點（Google Places 代理）
 | 方法 | 路徑 | 說明 |
 |------|------|------|
-| GET | `/api/places/nearby` | 搜尋球場周邊地點（Google + 策展備援） |
+| GET | `/api/places/nearby` | 搜尋球場周邊地點（Google + 策展備援；每 IP 每分鐘 30 次。Google 5 秒內沒回應就改用策展資料） |
 | GET | `/api/places/photo` | 取得地點照片代理（`ref` 必填、`maxwidth` 1–1600；每 IP 每分鐘 60 次） |
 
 ### 管理員（需 is_admin，需登入）
@@ -322,6 +322,10 @@ VITE_API_BASE_URL=http://localhost:3001   # 選填，只用於景點照片網址
 | 停靠點 `day` | `1` 或 `2` |
 | 停靠點 `order_index` | 非負整數 |
 | 停靠點 `lat` / `lng` | 數字，範圍 ±90 / ±180 |
+| 停靠點 `category` | `attraction`、`restaurant`、`lodging`、`museum`、`shopping`、`other` 其中之一 |
+| 停靠點數量 | 每個行程最多 50 個，超過回傳 409 |
+| 文字長度上限 | `username` 40、`email` 254、行程 `title` 120、`notes` 2000、停靠點 / 策展景點 `name` 200、`address` 300、`city` 100（定義在 `backend/src/utils/limits.ts`） |
+| 周邊搜尋參數 | `lat` / `lng` 為合法座標、`radius` 為 1–50000 的整數、`type` 為 Google 地點類型（小寫加底線）、`keyword` 最多 100 字元 |
 
 ### 錯誤回應格式
 
@@ -333,9 +337,9 @@ VITE_API_BASE_URL=http://localhost:3001   # 選填，只用於景點照片網址
 | 401 | 未登入、token 無效、過期或已被撤銷（前端會自動登出並導回登入頁） |
 | 403 | 帳號已停用、非管理員、不允許的 CORS 來源、cookie 寫入請求缺少 `X-Requested-With` |
 | 404 | 資源或路由不存在 |
-| 409 | 資料重複（如 email / username 已被使用） |
+| 409 | 資料重複（如 email / username 已被使用）、行程的停靠點已達上限 |
 | 422 | 註冊 / 登入欄位格式錯誤 |
-| 429 | 超過速率限制：登入 / 註冊 / 修改密碼每個「IP + 帳號」15 分鐘內最多 10 次失敗嘗試（IPv6 以 /56 網段計算，換位址無法繞過）；照片代理每 IP 每分鐘 60 次 |
+| 429 | 超過速率限制：登入 / 註冊 / 修改密碼每個「IP + 帳號」15 分鐘內最多 10 次失敗嘗試（IPv6 以 /56 網段計算，換位址無法繞過）；周邊搜尋每 IP 每分鐘 30 次；照片代理每 IP 每分鐘 60 次 |
 | 500 | 未預期的伺服器錯誤（詳細內容只寫入伺服器 log） |
 | 503 | 未設定 Google Maps API Key 時呼叫照片代理 |
 

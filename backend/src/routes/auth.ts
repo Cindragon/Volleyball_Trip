@@ -6,6 +6,7 @@ import { requireAuth, AuthRequest } from '../middleware/auth';
 import sql from '../db/database';
 import { asyncRouter } from '../middleware/asyncRouter';
 import { authLimiter } from '../middleware/rateLimit';
+import { MAX_LENGTH } from '../utils/limits';
 
 const router = asyncRouter();
 
@@ -65,7 +66,7 @@ router.post('/register', authLimiter, async (req: Request, res: Response): Promi
     return;
   }
   const email = normalizeEmail(rawEmail);
-  if (!email || !EMAIL_REGEX.test(email)) {
+  if (!email || !EMAIL_REGEX.test(email) || email.length > MAX_LENGTH.email) {
     res.status(422).json({ error: 'Invalid email format' });
     return;
   }
@@ -77,6 +78,10 @@ router.post('/register', authLimiter, async (req: Request, res: Response): Promi
   const username = typeof rawUsername === 'string' ? rawUsername.trim() : '';
   if (username.length < 2) {
     res.status(422).json({ error: 'Username must be at least 2 characters' });
+    return;
+  }
+  if (username.length > MAX_LENGTH.username) {
+    res.status(422).json({ error: `Username must be at most ${MAX_LENGTH.username} characters` });
     return;
   }
 
