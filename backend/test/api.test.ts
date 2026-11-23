@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import axios from 'axios';
 
 // Env must be set before app.ts runs; dotenv never overrides existing vars,
 // so a local backend/.env cannot leak real keys into the tests.
@@ -22,6 +23,8 @@ vi.mock('../src/db/database', () => ({ default: sqlMock }));
 vi.mock('../src/db/upgrades', () => ({ ensureSchemaUpgrades: () => Promise.resolve() }));
 
 import app from '../src/app';
+import { GOOGLE_TIMEOUT_MS } from '../src/routes/places';
+import { MAX_LENGTH, MAX_STOPS_PER_ITINERARY } from '../src/utils/limits';
 
 const ACTIVE_USER = { id: 1, username: 'tester', is_admin: false, is_active: true };
 const token = jwt.sign({ userId: 1, username: 'tester' }, process.env.JWT_SECRET as string);
@@ -110,6 +113,47 @@ describe('places photo proxy', () => {
   });
 });
 
+describe('places nearby search', () => {
+  it.each([
+    ['non-numeric lat', 'lat=abc&lng=12'],
+    ['out-of-range lng', 'lat=45&lng=200'],
+    ['huge radius', 'lat=45&lng=12&radius=999999'],
+    ['fractional radius', 'lat=45&lng=12&radius=10.5'],
+    ['odd type', 'lat=45&lng=12&type=bad%20type'],
+    ['repeated city', 'lat=45&lng=12&city=a&city=b'],
+    ['long keyword', `lat=45&lng=12&keyword=${'k'.repeat(MAX_LENGTH.keyword + 1)}`],
+  ])('rejects %s', async (_label, query) => {
+    const res = await request(app).get(`/api/places/nearby?${query}`);
+    expect(res.status).toBe(400);
+    expect(sqlMock).not.toHaveBeenCalled();
+  });
+
+  it('serves the curated list when no API key is configured', async () => {
+    const res = await request(app).get('/api/places/nearby?lat=45.07&lng=7.68&city=Torino');
+    expect(res.status).toBe(200);
+    expect(res.body.source).toBe('curated');
+  });
+
+  it('gives Google a timeout and falls back to the curated list when it fails', async () => {
+    process.env.GOOGLE_MAPS_API_KEY = 'test-key';
+    const get = vi.spyOn(axios, 'get').mockRejectedValueOnce(new Error('timeout of 5000ms exceeded'));
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const res = await request(app).get('/api/places/nearby?lat=45.07&lng=7.68&type=restaurant');
+      expect(res.status).toBe(200);
+      expect(res.body.source).toBe('curated');
+      expect(get).toHaveBeenCalledWith(
+        expect.stringContaining('nearbysearch'),
+        expect.objectContaining({ timeout: GOOGLE_TIMEOUT_MS }),
+      );
+    } finally {
+      process.env.GOOGLE_MAPS_API_KEY = '';
+      get.mockRestore();
+      error.mockRestore();
+    }
+  });
+});
+
 describe('auth', () => {
   it('normalizes email case on register', async () => {
     sqlMock
@@ -124,6 +168,14 @@ describe('auth', () => {
     expect(sqlText(0)).toContain('lower(email)');
     expect(sqlValues(0)).toContain('mixed@example.com');
     expect(sqlValues(1)).toContain('mixed@example.com');
+  });
+
+  it('rejects usernames over the length limit', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ username: 'u'.repeat(MAX_LENGTH.username + 1), email: 'long@example.com', password: 'secret123' });
+    expect(res.status).toBe(422);
+    expect(sqlMock).not.toHaveBeenCalled();
   });
 
   it('looks up login emails case-insensitively', async () => {
@@ -221,6 +273,8 @@ describe('itineraries', () => {
     ['roll-over date', { team_id: 1, title: 'Trip', visit_date: '2026-02-31' }],
     ['blank title', { team_id: 1, title: '   ', visit_date: '2026-12-01' }],
     ['string team_id', { team_id: '1', title: 'Trip', visit_date: '2026-12-01' }],
+    ['overlong title', { team_id: 1, title: 't'.repeat(MAX_LENGTH.itineraryTitle + 1), visit_date: '2026-12-01' }],
+    ['overlong notes', { team_id: 1, title: 'Trip', visit_date: '2026-12-01', notes: 'n'.repeat(MAX_LENGTH.notes + 1) }],
   ])('rejects create with %s', async (_label, body) => {
     sqlMock.mockResolvedValueOnce([ACTIVE_USER]);
     const res = await request(app).post('/api/itineraries').set(auth).send(body);
@@ -256,6 +310,8 @@ describe('itineraries', () => {
     ['day 3', { day: 3 }],
     ['negative order_index', { order_index: -1 }],
     ['empty name', { name: '' }],
+    ['unknown category', { category: 'casino' }],
+    ['overlong notes', { notes: 'n'.repeat(MAX_LENGTH.notes + 1) }],
   ])('rejects stop update with %s', async (_label, body) => {
     sqlMock.mockResolvedValueOnce([ACTIVE_USER]).mockResolvedValueOnce([{ id: 3 }]);
     const res = await request(app).put('/api/itineraries/3/stops/9').set(auth).send(body);
@@ -269,6 +325,45 @@ describe('itineraries', () => {
       .set(auth)
       .send({ name: 'X', lat: 200, lng: 0 });
     expect(res.status).toBe(400);
+  });
+
+  it.each([
+    ['unknown category', { name: 'X', lat: 1, lng: 1, category: 'casino' }],
+    ['overlong name', { name: 'x'.repeat(MAX_LENGTH.stopName + 1), lat: 1, lng: 1 }],
+    ['overlong address', { name: 'X', lat: 1, lng: 1, address: 'a'.repeat(MAX_LENGTH.address + 1) }],
+  ])('rejects new stops with %s', async (_label, body) => {
+    sqlMock.mockResolvedValueOnce([ACTIVE_USER]).mockResolvedValueOnce([{ id: 3 }]);
+    const res = await request(app).post('/api/itineraries/3/stops').set(auth).send(body);
+    expect(res.status).toBe(400);
+    expect(sqlMock).toHaveBeenCalledTimes(2); // auth + ownership, no insert
+  });
+
+  it('refuses a stop beyond the per-itinerary limit', async () => {
+    sqlMock
+      .mockResolvedValueOnce([ACTIVE_USER])                          // auth
+      .mockResolvedValueOnce([{ id: 3 }])                            // ownership
+      .mockResolvedValueOnce([{ count: MAX_STOPS_PER_ITINERARY }]);  // stop count
+    const res = await request(app)
+      .post('/api/itineraries/3/stops')
+      .set(auth)
+      .send({ name: 'One too many', lat: 1, lng: 1, category: 'restaurant' });
+    expect(res.status).toBe(409);
+    expect(sqlMock).toHaveBeenCalledTimes(3); // no insert
+  });
+
+  it('adds a stop while under the limit', async () => {
+    sqlMock
+      .mockResolvedValueOnce([ACTIVE_USER])
+      .mockResolvedValueOnce([{ id: 3 }])
+      .mockResolvedValueOnce([{ count: MAX_STOPS_PER_ITINERARY - 1 }])
+      .mockResolvedValueOnce([{ id: 11 }])                 // insert
+      .mockResolvedValueOnce([{ id: 11, name: 'Cafe' }]);  // re-select
+    const res = await request(app)
+      .post('/api/itineraries/3/stops')
+      .set(auth)
+      .send({ name: 'Cafe', lat: 1, lng: 1, category: 'other' });
+    expect(res.status).toBe(201);
+    expect(res.body.stop).toMatchObject({ id: 11 });
   });
 });
 
@@ -436,5 +531,13 @@ describe('rate limiting', () => {
       .post('/api/auth/login')
       .send({ email: 'someone-else@example.com', password: 'wrong' });
     expect(other.status).toBe(401);
+  });
+
+  it('caps place searches per client', async () => {
+    let status = 0;
+    for (let i = 0; i < 40 && status !== 429; i++) {
+      status = (await request(app).get('/api/places/nearby?lat=45&lng=7')).status;
+    }
+    expect(status).toBe(429);
   });
 });
