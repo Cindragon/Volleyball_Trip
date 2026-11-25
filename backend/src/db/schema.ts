@@ -3,6 +3,7 @@ dotenv.config({ quiet: true });
 
 import sql from './database';
 import { ensureRateLimitTable } from '../middleware/postgresRateLimitStore';
+import { assertNotProductionDatabase, reportStartupError } from './environmentGuard';
 
 export async function initSchema(): Promise<void> {
   await sql`
@@ -99,8 +100,7 @@ export async function initSchema(): Promise<void> {
 
 // Allow running directly: tsx src/db/schema.ts
 if (require.main === module) {
-  initSchema().catch(err => {
-    console.error(err);
-    process.exit(1);
-  });
+  assertNotProductionDatabase('npm run migrate')
+    .then(initSchema)
+    .catch(reportStartupError);
 }

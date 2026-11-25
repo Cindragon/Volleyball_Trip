@@ -3,6 +3,7 @@ dotenv.config({ quiet: true });
 
 import { initSchema } from './schema';
 import sql from './database';
+import { assertNotProductionDatabase, reportStartupError } from './environmentGuard';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
 
@@ -683,7 +684,6 @@ async function seed() {
   console.log(`Seeded ${teams.length} teams successfully.`);
 }
 
-seed().catch(err => {
-  console.error(err);
-  process.exit(1);
-});
+assertNotProductionDatabase('npm run seed')
+  .then(seed)
+  .catch(reportStartupError);

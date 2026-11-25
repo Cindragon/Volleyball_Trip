@@ -3,16 +3,15 @@ dotenv.config({ quiet: true });
 
 import app from './app';
 import { initSchema } from './db/schema';
+import { assertNotProductionDatabase, reportStartupError } from './db/environmentGuard';
 
 const PORT = process.env.PORT ?? 3001;
 
-initSchema()
+assertNotProductionDatabase('the local dev server')
+  .then(initSchema)
   .then(() => {
     app.listen(PORT, () => {
       console.log(`VolleyTrip API running on http://localhost:${PORT}`);
     });
   })
-  .catch(err => {
-    console.error('Failed to initialize schema:', err);
-    process.exit(1);
-  });
+  .catch(reportStartupError);

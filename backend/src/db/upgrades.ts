@@ -1,4 +1,5 @@
 import sql from './database';
+import { recordProductionDatabase } from './environmentGuard';
 
 /**
  * Additive schema changes that newer code depends on.
@@ -22,4 +23,10 @@ async function runUpgrades(): Promise<void> {
   // Session revocation: tokens carry the version they were issued with; bumping
   // it ("sign out everywhere", password change) invalidates all older tokens.
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0`;
+
+  // Lets local tooling recognise (and refuse) the production database. Only a
+  // safety net for developers, so a failure here must never block requests.
+  await recordProductionDatabase().catch((err) => {
+    console.error('Could not record the production database marker:', err);
+  });
 }
