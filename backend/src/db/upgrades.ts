@@ -24,6 +24,9 @@ async function runUpgrades(): Promise<void> {
   // it ("sign out everywhere", password change) invalidates all older tokens.
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0`;
 
-  // Lets local tooling recognise (and refuse) the production database.
-  await recordProductionDatabase();
+  // Lets local tooling recognise (and refuse) the production database. Only a
+  // safety net for developers, so a failure here must never block requests.
+  await recordProductionDatabase().catch((err) => {
+    console.error('Could not record the production database marker:', err);
+  });
 }
