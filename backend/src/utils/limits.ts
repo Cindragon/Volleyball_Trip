@@ -13,6 +13,12 @@ export const MAX_LENGTH = {
   placeId: 300,
   photoReference: 2048,
   keyword: 100,
+  teamName: 120,
+  shortName: 40,
+  league: 60,
+  country: 60,
+  arenaName: 200,
+  url: 2048,
 } as const;
 
 /** A trip has two days; this keeps the map and list usable. */

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import sql from '../db/database';
 import { asyncRouter } from '../middleware/asyncRouter';
+import { setCdnCache, TEAMS_CDN_SECONDS } from '../utils/cache';
 
 const router = asyncRouter();
 
@@ -16,6 +17,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
     : c      ? await sql`SELECT * FROM teams WHERE country = ${c} ORDER BY country, league, name`
     :          await sql`SELECT * FROM teams ORDER BY country, league, name`;
 
+  setCdnCache(res, TEAMS_CDN_SECONDS);
   res.json({ teams });
 });
 
@@ -35,6 +37,7 @@ router.get('/leagues', async (_req: Request, res: Response): Promise<void> => {
     grouped[c].push(l);
   }
 
+  setCdnCache(res, TEAMS_CDN_SECONDS);
   res.json({ leagues: grouped });
 });
 
@@ -46,6 +49,7 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
     res.status(404).json({ error: 'Team not found' });
     return;
   }
+  setCdnCache(res, TEAMS_CDN_SECONDS);
   res.json({ team });
 });
 

@@ -50,7 +50,7 @@ export default function AdminPage() {
     setToast({ msg, severity });
 
   // ── Load data ──────────────────────────────────────────────────────────────
-  const reloadTeams  = () => teamsApi.list().then(({ data }) => setTeams(data.teams));
+  const reloadTeams  = () => teamsApi.list(undefined, { fresh: true }).then(({ data }) => setTeams(data.teams));
   const reloadPlaces = places.reload;
   const reloadUsers  = users.reload;
 
