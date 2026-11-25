@@ -168,7 +168,7 @@ bash start-all.sh
 ```bash
 cd backend
 cp .env.example .env
-# 編輯 .env，填入 DATABASE_URL、GOOGLE_MAPS_API_KEY 與 JWT_SECRET
+# 編輯 .env，填入 DATABASE_URL（開發用的 Neon branch，見下方「開發資料庫」）、GOOGLE_MAPS_API_KEY 與 JWT_SECRET
 npm install
 npm run migrate # 在 Neon 上建立資料表
 npm run seed    # 種入 50 支球隊、建立預設 admin
@@ -191,7 +191,7 @@ npm run dev     # 啟動於 http://localhost:5173
 
 ### 後端 `backend/.env`
 ```env
-DATABASE_URL=postgresql://user:password@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require
+DATABASE_URL=postgresql://user:password@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require  # 開發用 branch，不要填正式資料庫
 PORT=3001
 JWT_SECRET=自訂一組安全的隨機字串   # 至少 16 字元，否則後端無法啟動
 GOOGLE_MAPS_API_KEY=你的_Google_Maps_API_Key
@@ -401,6 +401,23 @@ users ──1:N──→ admin_places（created_by）
 npm run migrate  # 執行 schema.ts，建立所有資料表（CREATE TABLE IF NOT EXISTS）
 npm run seed     # 執行 seed.ts，寫入 50 支球隊 + 預設 admin 帳號
 ```
+
+### 開發資料庫（和正式環境分開）
+
+本機開發、`npm run migrate`、`npm run seed` 都必須連到 **Neon 的開發用 branch**，不能連正式資料庫，否則本機測試會改到真實使用者的資料，`seed` 也會重設正式環境的管理員密碼。
+
+**建立方式（只需做一次）**
+1. Neon 主控台 → 你的專案 → **Branches** → **Create branch**，從 `main`（正式資料）分出一個 branch，例如命名為 `dev`。資料會整份複製過去，包含球隊、帳號與行程。
+2. 在新 branch 的 **Connection details** 複製連線字串。
+3. 把 `backend/.env` 的 `DATABASE_URL` 換成這個新字串。Vercel 上的 `DATABASE_URL` 保持不變（仍是正式資料庫）。
+4. 重新啟動 `npm run dev`。
+
+**防呆機制**（`backend/src/db/environmentGuard.ts`）
+- 正式環境（`VERCEL_ENV=production`）會把自己使用的資料庫 endpoint 寫進 `app_meta` 資料表。
+- 本機的 dev server、`migrate`、`seed` 啟動前會比對：`DATABASE_URL` 的 endpoint 和記錄相同，就拒絕執行並說明原因。pooled（`-pooler`）和直連網址視為同一個 endpoint。
+- 從正式環境分出的 branch 雖然複製了這筆記錄，但 endpoint 不同，所以可以正常使用，不需要額外設定。
+- 真的需要對正式資料庫做一次性操作時，可以只在那一次指令加上 `ALLOW_PRODUCTION_DB=true`，會印出警告後執行。
+- 開發 branch 的資料不會自動同步正式環境；想要最新資料時，在 Neon 主控台對 `dev` branch 做 **Reset from parent** 即可。
 
 ---
 
