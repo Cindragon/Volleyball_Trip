@@ -7,6 +7,12 @@ export const MAX_LENGTH = {
   stopName: 200,
   address: 300,
   city: 100,
+  teamName: 120,
+  shortName: 40,
+  league: 60,
+  country: 60,
+  arenaName: 200,
+  url: 2048,
 } as const;
 
 /** `slotProps` for an MUI TextField that caps input at `max` characters. */

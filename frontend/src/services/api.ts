@@ -70,8 +70,12 @@ export const authApi = {
 
 // ── Teams ─────────────────────────────────────────────────────────────────────
 export const teamsApi = {
-  list: (params?: { league?: string; country?: string }) =>
-    api.get<{ teams: Team[] }>('/teams', { params }),
+  /**
+   * Team responses are cached by the CDN for a few minutes. `fresh` adds a
+   * unique query param so the admin console sees its own changes right away.
+   */
+  list: (params?: { league?: string; country?: string }, opts?: { fresh?: boolean }) =>
+    api.get<{ teams: Team[] }>('/teams', { params: opts?.fresh ? { ...params, _: Date.now() } : params }),
 
   leagues: () =>
     api.get<{ leagues: Record<string, string[]> }>('/teams/leagues'),
@@ -115,9 +119,40 @@ export const itinerariesApi = {
 };
 
 // ── Places ────────────────────────────────────────────────────────────────────
+type NearbyParams = { lat: number; lng: number; type?: string; radius?: number; keyword?: string; city?: string };
+type NearbyResponse = { results: NearbyPlace[]; status: string; source?: 'google' | 'curated' };
+
+/**
+ * Nearby searches are reused for a short while within the same page load, so
+ * flipping between place types (or reopening "Add a stop") does not spend
+ * Google quota again. Kept in memory only: a reload starts fresh. Google's
+ * terms restrict caching Places content, so this is deliberately not
+ * persisted (no localStorage) and not cached on the server or CDN.
+ */
+export const NEARBY_REUSE_MS = 10 * 60 * 1000;
+const nearbyReuse = new Map<string, { at: number; request: ReturnType<typeof fetchNearby> }>();
+
+function fetchNearby(params: NearbyParams) {
+  return api.get<NearbyResponse>('/places/nearby', { params });
+}
+
+/** Test hook: forget reused nearby searches. */
+export function clearNearbyReuse(): void {
+  nearbyReuse.clear();
+}
+
 export const placesApi = {
-  nearby: (params: { lat: number; lng: number; type?: string; radius?: number; keyword?: string; city?: string }) =>
-    api.get<{ results: NearbyPlace[]; status: string; source?: 'google' | 'curated' }>('/places/nearby', { params }),
+  nearby: (params: NearbyParams) => {
+    const key = JSON.stringify(params);
+    const hit = nearbyReuse.get(key);
+    if (hit && Date.now() - hit.at < NEARBY_REUSE_MS) return hit.request;
+
+    const request = fetchNearby(params);
+    nearbyReuse.set(key, { at: Date.now(), request });
+    // Never reuse a failure (e.g. 429): the next attempt should hit the API.
+    request.catch(() => { if (nearbyReuse.get(key)?.request === request) nearbyReuse.delete(key); });
+    return request;
+  },
 
   photoUrl: (ref: string, maxwidth = 400) =>
     `${PUBLIC_ASSET_ORIGIN}/api/places/photo?ref=${encodeURIComponent(ref)}&maxwidth=${maxwidth}`,

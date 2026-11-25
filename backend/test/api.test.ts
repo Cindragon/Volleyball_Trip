@@ -477,6 +477,70 @@ describe('session revocation', () => {
   });
 });
 
+describe('team responses and CDN caching', () => {
+  it('lets the CDN cache successful team lookups', async () => {
+    sqlMock.mockResolvedValueOnce([{ id: 1, name: 'Cuneo' }]);
+    const res = await request(app).get('/api/teams');
+    expect(res.status).toBe(200);
+    expect(res.headers['cache-control']).toBe('public, max-age=0, s-maxage=300, stale-while-revalidate=3000');
+  });
+
+  it('never caches a missing team or a server error', async () => {
+    const missing = await request(app).get('/api/teams/99');
+    expect(missing.status).toBe(404);
+    expect(missing.headers['cache-control'] ?? '').not.toContain('s-maxage');
+
+    sqlMock.mockRejectedValueOnce(new Error('db down'));
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const failed = await request(app).get('/api/teams');
+    error.mockRestore();
+    expect(failed.status).toBe(500);
+    expect(failed.headers['cache-control'] ?? '').not.toContain('s-maxage');
+  });
+});
+
+describe('admin: new team validation', () => {
+  const ADMIN = { ...ACTIVE_USER, is_admin: true };
+  const valid = {
+    name: 'Torino Volley', short_name: 'Torino', league: 'SuperLega', country: 'Italy', city: 'Torino',
+    arena_name: 'Pala Ruffini', lat: 45.07, lng: 7.65, primary_color: '#aa3311', website_url: 'https://example.com',
+  };
+
+  it.each([
+    ['missing short_name', { ...valid, short_name: '' }],
+    ['blank arena', { ...valid, arena_name: '   ' }],
+    ['NaN latitude (sent as null)', { ...valid, lat: null }],
+    ['string latitude', { ...valid, lat: '45' }],
+    ['out-of-range longitude', { ...valid, lng: 181 }],
+    ['named colour', { ...valid, primary_color: 'red' }],
+    ['short hex colour', { ...valid, primary_color: '#a31' }],
+    ['javascript: website', { ...valid, website_url: 'javascript:alert(1)' }],
+    ['ftp logo', { ...valid, logo_url: 'ftp://example.com/logo.png' }],
+    ['overlong name', { ...valid, name: 'n'.repeat(MAX_LENGTH.teamName + 1) }],
+  ])('rejects %s', async (_label, body) => {
+    sqlMock.mockResolvedValueOnce([ADMIN]);
+    const res = await request(app).post('/api/admin/teams').set(auth).send(body);
+    expect(res.status).toBe(400);
+    expect(sqlMock).toHaveBeenCalledTimes(1); // only the admin lookup
+  });
+
+  it('trims text and stores a valid team', async () => {
+    sqlMock
+      .mockResolvedValueOnce([ADMIN])
+      .mockResolvedValueOnce([{ id: 50 }])
+      .mockResolvedValueOnce([{ id: 50, name: 'Torino Volley' }]);
+    const res = await request(app)
+      .post('/api/admin/teams')
+      .set(auth)
+      .send({ ...valid, name: '  Torino Volley  ', website_url: '' });
+    expect(res.status).toBe(201);
+    // name, short_name, league, country, city, arena, lat, lng, logo, colour, website
+    expect(sqlValues(1)).toEqual([
+      'Torino Volley', 'Torino', 'SuperLega', 'Italy', 'Torino', 'Pala Ruffini', 45.07, 7.65, null, '#aa3311', null,
+    ]);
+  });
+});
+
 describe('admin pagination', () => {
   const ADMIN = { ...ACTIVE_USER, is_admin: true };
 

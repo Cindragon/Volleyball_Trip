@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AxiosError, AxiosHeaders, type AxiosAdapter, type InternalAxiosRequestConfig } from 'axios';
-import api, { authApi, placesApi, itinerariesApi, setSessionExpiredHandler } from './api';
+import api, { authApi, placesApi, itinerariesApi, teamsApi, setSessionExpiredHandler, clearNearbyReuse, NEARBY_REUSE_MS } from './api';
 
 /** Replaces the network layer: every request answers with the given status/body. */
 function respondWith(status: number, data: unknown = {}) {
@@ -70,5 +70,63 @@ describe('placesApi.photoUrl', () => {
     expect(placesApi.photoUrl('abc&key=evil', 200)).toBe(
       'https://api.example.test/api/places/photo?ref=abc%26key%3Devil&maxwidth=200'
     );
+  });
+});
+
+describe('placesApi.nearby reuse', () => {
+  const params = { lat: 45, lng: 7, type: 'museum', radius: 3000, city: 'Torino' };
+  let calls = 0;
+  let fail = false;
+
+  beforeEach(() => {
+    clearNearbyReuse();
+    calls = 0;
+    fail = false;
+    api.defaults.adapter = (config) => {
+      calls++;
+      const response = { data: { results: [], status: 'OK' }, status: fail ? 429 : 200, statusText: '', headers: {}, config };
+      return fail
+        ? Promise.reject(new AxiosError('failed', 'ERR_BAD_RESPONSE', config, null, response))
+        : Promise.resolve(response);
+    };
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('reuses the same search within the page load', async () => {
+    await placesApi.nearby(params);
+    await placesApi.nearby({ ...params });
+    expect(calls).toBe(1);
+    await placesApi.nearby({ ...params, type: 'cafe' });
+    expect(calls).toBe(2);
+  });
+
+  it('searches again once the reuse window has passed', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    await placesApi.nearby(params);
+    vi.setSystemTime(Date.now() + NEARBY_REUSE_MS + 1);
+    await placesApi.nearby(params);
+    expect(calls).toBe(2);
+  });
+
+  it('does not reuse a failed search', async () => {
+    fail = true;
+    await expect(placesApi.nearby(params)).rejects.toBeTruthy();
+    fail = false;
+    await placesApi.nearby(params);
+    expect(calls).toBe(2);
+  });
+});
+
+describe('teamsApi.list', () => {
+  it('adds a cache-busting param only when fresh data is requested', async () => {
+    const seen: unknown[] = [];
+    api.defaults.adapter = (config) => {
+      seen.push(config.params);
+      return Promise.resolve({ data: { teams: [] }, status: 200, statusText: '', headers: {}, config });
+    };
+    await teamsApi.list();
+    await teamsApi.list(undefined, { fresh: true });
+    expect(seen[0]).toBeUndefined();
+    expect(seen[1]).toEqual({ _: expect.any(Number) });
   });
 });

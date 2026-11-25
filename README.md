@@ -283,6 +283,8 @@ VITE_API_BASE_URL=http://localhost:3001   # 選填，只用於景點照片網址
 | GET | `/api/teams/leagues` | 依國家分組的聯賽清單 |
 | GET | `/api/teams/:id` | 單一球隊詳細資訊 |
 
+> 球隊 API 的成功回應會讓 Vercel CDN 快取 5 分鐘（`s-maxage=300`，之後最多再用舊資料 50 分鐘並在背景更新），404 和錯誤不會被快取。所以管理員新增或刪除球隊後，前台的球隊列表最多晚 5 分鐘更新；管理後台會帶 `_` 參數略過快取，馬上看到變更。
+
 ### 行程（需登入）
 | 方法 | 路徑 | 說明 |
 |------|------|------|
@@ -304,7 +306,7 @@ VITE_API_BASE_URL=http://localhost:3001   # 選填，只用於景點照片網址
 ### 管理員（需 is_admin，需登入）
 | 方法 | 路徑 | 說明 |
 |------|------|------|
-| POST   | `/api/admin/teams` | 新增球隊 |
+| POST   | `/api/admin/teams` | 新增球隊（驗證規則見下表） |
 | DELETE | `/api/admin/teams/:id` | 刪除球隊（連同行程） |
 | GET    | `/api/admin/places?limit=&offset=` | 分頁取得策展景點（回傳 `places`、`total`） |
 | POST   | `/api/admin/places` | 新增策展景點 |
@@ -331,6 +333,9 @@ VITE_API_BASE_URL=http://localhost:3001   # 選填，只用於景點照片網址
 | 停靠點數量 | 每個行程最多 50 個，超過回傳 409 |
 | 文字長度上限 | `username` 40、`email` 254、行程 `title` 120、`notes` 2000、停靠點 / 策展景點 `name` 200、`address` 300、`city` 100（定義在 `backend/src/utils/limits.ts`） |
 | 周邊搜尋參數 | `lat` / `lng` 為合法座標、`radius` 為 1–50000 的整數、`type` 為 Google 地點類型（小寫加底線）、`keyword` 最多 100 字元 |
+| 新增球隊 | `name` / `short_name` / `league` / `country` / `city` / `arena_name` 必填且不可空白（上限 120 / 40 / 60 / 60 / 100 / 200 字元）；`lat` / `lng` 必須是數字且在 ±90 / ±180 內；`primary_color` 為 `#rrggbb`；`website_url` / `logo_url` 只接受 http(s) 網址 |
+
+> **周邊搜尋結果不在伺服器或 CDN 快取**：Google Maps Platform 條款限制快取 Places 的內容。前端只在同一次頁面載入中，把相同條件的搜尋結果重用 10 分鐘（只存在記憶體，重新整理就清掉，失敗的搜尋不會重用），讓來回切換地點類型時不會重複呼叫 Google。
 
 ### 錯誤回應格式
 

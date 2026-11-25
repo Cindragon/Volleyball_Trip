@@ -11,28 +11,63 @@ router.use(requireAdmin);
 
 // ── Teams ────────────────────────────────────────────────────────────────────
 
-router.post('/teams', async (req: AuthRequest, res: Response): Promise<void> => {
-  const {
-    name, short_name, league, country, city,
-    arena_name, lat, lng,
-    logo_url, primary_color, website_url,
-  } = req.body ?? {};
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
-  const required = { name, short_name, league, country, city, arena_name, lat, lng };
-  for (const [k, v] of Object.entries(required)) {
-    if (v === undefined || v === null || v === '') {
-      res.status(400).json({ error: `Missing required field: ${k}` });
-      return;
-    }
+const isCoord = (v: unknown, max: number) =>
+  typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= max;
+
+/** Optional http(s) URL; anything else (javascript:, data:, typos) is rejected. */
+function isOptionalHttpUrl(v: unknown): boolean {
+  if (v === undefined || v === null || v === '') return true;
+  if (typeof v !== 'string' || v.length > MAX_LENGTH.url) return false;
+  try {
+    const { protocol } = new URL(v);
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
   }
+}
+
+/** Returns an error message for a new team's fields, or null when they are valid. */
+function teamError(body: Record<string, unknown>): string | null {
+  const text: [string, number][] = [
+    ['name', MAX_LENGTH.teamName], ['short_name', MAX_LENGTH.shortName],
+    ['league', MAX_LENGTH.league], ['country', MAX_LENGTH.country],
+    ['city', MAX_LENGTH.city], ['arena_name', MAX_LENGTH.arenaName],
+  ];
+  for (const [field, max] of text) {
+    const v = body[field];
+    if (typeof v !== 'string' || v.trim() === '') return `Missing required field: ${field}`;
+    if (v.trim().length > max) return `${field} must be at most ${max} characters`;
+  }
+  if (!isCoord(body.lat, 90)) return 'lat must be a number between -90 and 90';
+  if (!isCoord(body.lng, 180)) return 'lng must be a number between -180 and 180';
+  if (body.primary_color != null && body.primary_color !== '' &&
+      (typeof body.primary_color !== 'string' || !HEX_COLOR.test(body.primary_color))) {
+    return 'primary_color must be a hex colour like #1976d2';
+  }
+  if (!isOptionalHttpUrl(body.website_url)) return 'website_url must be an http(s) URL';
+  if (!isOptionalHttpUrl(body.logo_url)) return 'logo_url must be an http(s) URL';
+  return null;
+}
+
+router.post('/teams', async (req: AuthRequest, res: Response): Promise<void> => {
+  const body = req.body ?? {};
+  const problem = teamError(body);
+  if (problem) {
+    res.status(400).json({ error: problem });
+    return;
+  }
+  const trimmed = (k: string) => (body[k] as string).trim();
+  const optional = (k: string) => (typeof body[k] === 'string' && body[k] !== '' ? body[k] as string : null);
 
   const [row] = await sql`
     INSERT INTO teams
       (name, short_name, league, country, city, arena_name, lat, lng, logo_url, primary_color, website_url)
     VALUES (
-      ${name}, ${short_name}, ${league}, ${country}, ${city},
-      ${arena_name}, ${Number(lat)}, ${Number(lng)},
-      ${logo_url ?? null}, ${primary_color ?? '#1976d2'}, ${website_url ?? null}
+      ${trimmed('name')}, ${trimmed('short_name')}, ${trimmed('league')}, ${trimmed('country')}, ${trimmed('city')},
+      ${trimmed('arena_name')}, ${body.lat}, ${body.lng},
+      ${optional('logo_url')}, ${optional('primary_color') ?? '#1976d2'}, ${optional('website_url')}
     )
     RETURNING id
   `;
